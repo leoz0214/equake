@@ -34,8 +34,7 @@ class TimeFilter:
     def __init__(
         self, start: Union[datetime, None] = None,
         end: Union[datetime, None] = None,
-        updated: Union[datetime, None] = None
-    ) -> None:
+        updated: Union[datetime, None] = None) -> None:
         """
         Creates a new `TimeFilter` object.
 
@@ -67,8 +66,8 @@ class TimeFilter:
                     days=DEFAULT_START_END_TIME_DAYS_GAP)
             except OverflowError:
                 # Cannot make time earlier from the end.
-                # Only happens if the end date is
-                # earlier than 30th January 1 AD.
+                # Only happens if the end time is earlier than
+                # 1st January 1 AD 00:00:00 + default time gap.
                 # Just make the start equal to the end instead.
                 self._start = self._end
         elif isinstance(start, datetime):
@@ -107,14 +106,17 @@ class TimeFilter:
         
     @property
     def start(self) -> datetime:
+        """Starting time to check from."""
         return self._start
 
     @property
     def end(self) -> datetime:
+        """Latest time to check from."""
         return self._end
     
     @property
     def updated(self) -> datetime:
+        """Minimum updated time."""
         return self._updated
     
     @start.setter

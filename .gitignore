@@ -1,2 +1,4 @@
 **/__pycache__
 sandbox.py
+.nox
+pyversions.json
