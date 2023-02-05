@@ -124,18 +124,18 @@ class TimeFilter:
         if isinstance(start, datetime):
             self._set_start(start)
         else:
-            raise _get_type_error("start", (datetime,), start)
+            raise _get_type_error("start", datetime, start)
     
     @end.setter
     def end(self, end: datetime) -> None:
         if isinstance(end, datetime):
             self._set_end(end)
         else:
-            raise _get_type_error("end", (datetime,), end)
+            raise _get_type_error("end", datetime, end)
     
     @updated.setter
     def updated(self, updated: datetime) -> None:
         if isinstance(updated, datetime):
             self._updated = updated
         else:
-            raise _get_type_error("updated", (datetime,), updated)
+            raise _get_type_error("updated", datetime, updated)

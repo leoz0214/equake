@@ -2,15 +2,18 @@
 This module contains utility functions for the rest of the library.
 It is private and should not be imported by the user.
 """
-from typing import Tuple
+from typing import Tuple, Union
 
 
 def _get_type_error(
-    name: str, allowed_types: Tuple[type], bad_data) -> TypeError:
+    name: str, allowed_types: Union[type, Tuple[type]], bad_data) -> TypeError:
     # Generates a TypeError based on the name of the data,
     # the allowed data types, and the type of the erroneous data.
     allowed_types_string = ""
     allowed_types_count = len(allowed_types)
+    if isinstance(allowed_types, type):
+        # Turns a standalone type into a 1-tuple.
+        allowed_types = (allowed_types,)
     for i, _type in enumerate(allowed_types):
         # None does not have __name__ for some reason.
         type_name = _type.__name__ if _type is not None else "None"
