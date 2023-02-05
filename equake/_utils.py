@@ -9,17 +9,17 @@ def _get_type_error(
     name: str, allowed_types: Union[type, Tuple[type]], bad_data) -> TypeError:
     # Generates a TypeError based on the name of the data,
     # the allowed data types, and the type of the erroneous data.
-    allowed_types_string = ""
-    allowed_types_count = len(allowed_types)
-    if isinstance(allowed_types, type):
+    if allowed_types is None or isinstance(allowed_types, type):
         # Turns a standalone type into a 1-tuple.
         allowed_types = (allowed_types,)
+    allowed_types_string = ""
+    allowed_types_count = len(allowed_types)
     for i, _type in enumerate(allowed_types):
         # None does not have __name__ for some reason.
         type_name = _type.__name__ if _type is not None else "None"
         allowed_types_string += f"'{type_name}'"
         if i == allowed_types_count - 2:
-            # Penultimate allowed data type.
+            # Penultimate allowed data type. Natural English.
             allowed_types_string += " or "
         if i < allowed_types_count - 2:
             allowed_types_string += ", "
