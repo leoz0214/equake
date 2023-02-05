@@ -26,3 +26,11 @@ def lint(session: nox.Session) -> None:
     for module in glob.glob("equake/*.py"):
         with suppress(Exception):
             session.run("pylint", module)
+
+
+@nox.session(python=PYTHON_VERSIONS)
+def test(session: nox.Session) -> None:
+    """Runs all tests."""
+    for module in glob.glob("testing/*.py"):
+        if module.split("\\")[-1].startswith("test"):
+            session.run("python", module)
