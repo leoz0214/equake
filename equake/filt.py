@@ -14,6 +14,12 @@ from ._utils import _get_type_error
 
 DEFAULT_START_END_TIME_DAYS_GAP = 30
 
+MIN_LATITUDE = -90
+MAX_LATITUDE = 90
+# Allow the International Date Line to be crossed by rectangles.
+MIN_LONGITUDE = -360
+MAX_LONGITUDE = 360
+
 
 class EarthquakeFilter:
     """
@@ -139,3 +145,96 @@ class TimeFilter:
             self._updated = updated
         else:
             raise _get_type_error("updated", datetime, updated)
+
+
+class _LocationFilter:
+    """Private base class for any location filter classes."""
+
+
+class RectLocationFilter(_LocationFilter):
+    """
+    Allows earthquakes to be filtered based on a
+    rectangular location area by latitude/longitude.
+    """
+
+    def __init__(
+        self, min_lat: Union[int, float], min_long: Union[int, float],
+        max_lat: Union[int, float], max_long: Union[int, float]) -> None:
+        """
+        Creates a new `RectLocationFilter` object.
+
+        Parameters:
+            `min_lat` - the minimum latitude to search from.
+            Range: -90 <= minimum latitude < maximum latitude
+
+            `min_long` - the minimum longitude to search from.
+            Range: -360 <= minimum longitude < maximum longitude
+
+            `max_lat` - the maximum latitude to search from.
+            Range: minimum latitude < maximum latitude <= 90
+
+            `max_long` - the maximum longitude to search from.
+            Range: minimum longitude < maximum longitude <= 360
+        
+        Note:
+            Usually, longitude ranges from -180 to 180. However, the range
+            has been doubled to -360 to 360. This allows rectangles to
+            cross the International Date Line as needed.
+
+            For example, searching from longitude -200 and -100 would be
+            the equivalent of searching from longitude 160 and 260. If
+            -180 or 180 lies between the minimum and maximum longitudes,
+            the date line is indeed crossed.
+        """
+        for position, value in (
+            ("min_lat", min_lat),
+            ("min_long", min_long),
+            ("max_lat", max_lat),
+            ("max_long", max_long)
+        ):
+            if isinstance(value, (int, float)):
+                getattr(self, f"_set_{position}")(value)
+            else:
+                raise _get_type_error(position, (int, float), value)
+    
+    def _set_min_lat(self, min_lat: Union[int, float]) -> None:
+        # Validates and sets the minimum latitude.
+        if min_lat < MIN_LATITUDE:
+            raise ValueError(
+                f"Minimum latitude must not be lower than {MIN_LATITUDE}.")
+        if min_lat > getattr(self, "_max_lat", float("inf")):
+            raise ValueError(
+                "Minimum latitude must be less than maximum latitude.")
+        self._min_lat = min_lat
+    
+    def _set_max_lat(self, max_lat: Union[int, float]) -> None:
+        # Validates and sets the maximum latitude.
+        if max_lat > MAX_LATITUDE:
+            raise ValueError(
+                f"Maximum latitude must not be higher than {MAX_LATITUDE}.")
+        if max_lat < getattr(self, "_min_lat", float("-inf")):
+            raise ValueError(
+                "Maximum latitude must be higher than minimum latitude.")
+        self._max_lat = max_lat
+    
+    def _set_min_long(self, min_long: Union[int, float]) -> None:
+        # Validates and sets the minimum longitude.
+        if min_long < MIN_LONGITUDE:
+            raise ValueError(
+                f"Minimum longitude must not be lower than {MIN_LONGITUDE}.")
+        if min_long > getattr(self, "_max_long", float("inf")):
+            raise ValueError(
+                "Minimum longitude must be less than maximum longitude.")
+        self._min_long = min_long
+    
+    def _set_max_long(self, max_long: Union[int, float]) -> None:
+        # Validates and sets the maximum longitude.
+        if max_long > MAX_LONGITUDE:
+            raise ValueError(
+                f"Maximum longitude must not be higher than {MIN_LONGITUDE}.")
+        if max_long < getattr(self, "_min_long", float("-inf")):
+            raise ValueError(
+                "Maximum longitude must be higher than minimum longitude.")
+        self._max_long = max_long
+    
+    # TODO - Remove boilerplate above, Getters and setters.
