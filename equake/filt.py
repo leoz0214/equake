@@ -7,7 +7,7 @@ In fact, earthquake searches must be done with a filter, as there
 are way too many recorded earthquakes for them all to be retrieved.
 """
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Callable, Union
 
 from ._utils import _get_type_error
 
@@ -16,9 +16,11 @@ DEFAULT_START_END_TIME_DAYS_GAP = 30
 
 MIN_LATITUDE = -90
 MAX_LATITUDE = 90
-# Allow the International Date Line to be crossed by rectangles.
-MIN_LONGITUDE = -360
-MAX_LONGITUDE = 360
+MIN_LONGITUDE = -180
+MAX_LONGITUDE = 180
+# To allow rectangles to cross the date line.
+RECT_MIN_LONGITUDE = MIN_LONGITUDE * 2
+RECT_MAX_LONGITUDE = MAX_LONGITUDE * 2
 
 
 class EarthquakeFilter:
@@ -61,10 +63,10 @@ class TimeFilter:
         """
         if end is None:
             self._end = datetime.utcnow()
-        elif isinstance(end, datetime):
-            self._end = end
-        else:
+        elif not isinstance(end, datetime):
             raise _get_type_error("end", (datetime, None), end)
+        else:
+            self._end = end
 
         if start is None:
             try:
@@ -76,17 +78,17 @@ class TimeFilter:
                 # 1st January 1 AD 00:00:00 + default time gap.
                 # Just make the start equal to the end instead.
                 self._start = self._end
-        elif isinstance(start, datetime):
-            self._set_start(start)
-        else:
+        elif not isinstance(start, datetime):
             raise _get_type_error("start", (datetime, None), start)
+        else:
+            self._set_start(start)
         
         if updated is None:
             self._updated = self._start
-        elif isinstance(updated, datetime):
-            self._updated = updated
-        else:
+        elif not isinstance(updated, datetime):
             raise _get_type_error("updated", (datetime, None), updated)
+        else:
+            self._updated = updated
     
     def _set_start(self, start: datetime) -> None:
         # Sets the internal start time, validating it too.
@@ -127,28 +129,37 @@ class TimeFilter:
     
     @start.setter
     def start(self, start: datetime) -> None:
-        if isinstance(start, datetime):
-            self._set_start(start)
-        else:
+        if not isinstance(start, datetime):
             raise _get_type_error("start", datetime, start)
+        self._set_start(start)
     
     @end.setter
     def end(self, end: datetime) -> None:
-        if isinstance(end, datetime):
-            self._set_end(end)
-        else:
+        if not isinstance(end, datetime):
             raise _get_type_error("end", datetime, end)
+        self._set_end(end)
     
     @updated.setter
     def updated(self, updated: datetime) -> None:
-        if isinstance(updated, datetime):
-            self._updated = updated
-        else:
+        if not isinstance(updated, datetime):
             raise _get_type_error("updated", datetime, updated)
+        self._updated = updated
 
 
 class _LocationFilter:
     """Private base class for any location filter classes."""
+
+    def _type_check(identifier: str) -> Callable:
+        # Decorator to ensure entered lat/long is numeric.
+        def decorator(func: Callable) -> Callable:
+            def wrapper(
+                self: _LocationFilter, value: Union[int, float]
+            ) -> None:
+                if not isinstance(value, (int, float)):
+                    raise _get_type_error(identifier, (int, float), value)
+                func(self, value)
+            return wrapper
+        return decorator
 
 
 class RectLocationFilter(_LocationFilter):
@@ -186,55 +197,94 @@ class RectLocationFilter(_LocationFilter):
             -180 or 180 lies between the minimum and maximum longitudes,
             the date line is indeed crossed.
         """
-        for position, value in (
-            ("min_lat", min_lat),
-            ("min_long", min_long),
-            ("max_lat", max_lat),
-            ("max_long", max_long)
+        for value, position, orient, bound, bound_limit in (
+            (min_lat, "min_lat", "latitude", "min", MIN_LATITUDE),
+            (min_long, "min_long", "longitude", "min", RECT_MIN_LONGITUDE),
+            (max_lat, "max_lat", "latitude", "max", MAX_LATITUDE),
+            (max_long, "max_long", "longitude", "max", RECT_MAX_LONGITUDE)
         ):
-            if isinstance(value, (int, float)):
-                getattr(self, f"_set_{position}")(value)
-            else:
+            if not isinstance(value, (int, float)):
                 raise _get_type_error(position, (int, float), value)
+            self._set_position(
+                value, f"_{position}", orient, bound, bound_limit)
     
-    def _set_min_lat(self, min_lat: Union[int, float]) -> None:
-        # Validates and sets the minimum latitude.
-        if min_lat < MIN_LATITUDE:
-            raise ValueError(
-                f"Minimum latitude must not be lower than {MIN_LATITUDE}.")
-        if min_lat > getattr(self, "_max_lat", float("inf")):
-            raise ValueError(
-                "Minimum latitude must be less than maximum latitude.")
-        self._min_lat = min_lat
+    def _set_position(
+        self, value: Union[int, float], attribute: str,
+        orient: str, bound: str, bound_limit: int) -> None:
+        # Validates and sets either the min/max lat/long.
+        # orient: longitude/latitude, bound: min/max
+        if bound == "min":
+            if value < bound_limit:
+                raise ValueError(
+                    f"Minimum {orient} must not be less than {bound_limit}")
+            # Must ensure min is not greater than max. Get max to do so.
+            _max = getattr(self, attribute.replace("min", "max"), float("inf"))
+            if value > _max:
+                raise ValueError(
+                    f"Minimum {orient} must be less than maximum {orient}")
+        else:
+            if value > bound_limit:
+                raise ValueError(
+                    f"Maximum {orient} must not be greater than {bound_limit}")
+            # Must ensure max is not less than min. Get min to do so.
+            _min = getattr(
+                self, attribute.replace("max", "min"), float("-inf"))
+            if value < _min:
+                raise ValueError(
+                    f"Maximum {orient} must be greater than minimum {orient}")
+        setattr(self, attribute, value)
     
-    def _set_max_lat(self, max_lat: Union[int, float]) -> None:
-        # Validates and sets the maximum latitude.
-        if max_lat > MAX_LATITUDE:
-            raise ValueError(
-                f"Maximum latitude must not be higher than {MAX_LATITUDE}.")
-        if max_lat < getattr(self, "_min_lat", float("-inf")):
-            raise ValueError(
-                "Maximum latitude must be higher than minimum latitude.")
-        self._max_lat = max_lat
+    def __repr__(self) -> str:
+        return "RectLocationFilter("\
+            f"{repr(self.min_lat)}, {repr(self.min_long)}, "\
+            f"{repr(self.max_lat)}, {repr(self.max_long)})"
     
-    def _set_min_long(self, min_long: Union[int, float]) -> None:
-        # Validates and sets the minimum longitude.
-        if min_long < MIN_LONGITUDE:
-            raise ValueError(
-                f"Minimum longitude must not be lower than {MIN_LONGITUDE}.")
-        if min_long > getattr(self, "_max_long", float("inf")):
-            raise ValueError(
-                "Minimum longitude must be less than maximum longitude.")
-        self._min_long = min_long
+    def __str__(self) -> str:
+        return f"Minimum latitude: {self.min_lat}\n"\
+            f"Minimum longitude: {self.min_long}\n"\
+            f"Maximum latitude: {self.max_lat}\n"\
+            f"Maximum longitude: {self.max_long}"
     
-    def _set_max_long(self, max_long: Union[int, float]) -> None:
-        # Validates and sets the maximum longitude.
-        if max_long > MAX_LONGITUDE:
-            raise ValueError(
-                f"Maximum longitude must not be higher than {MIN_LONGITUDE}.")
-        if max_long < getattr(self, "_min_long", float("-inf")):
-            raise ValueError(
-                "Maximum longitude must be higher than minimum longitude.")
-        self._max_long = max_long
+    @property
+    def min_lat(self) -> Union[int, float]:
+        """Minimum latitude to search from."""
+        return self._min_lat
     
-    # TODO - Remove boilerplate above, Getters and setters.
+    @property
+    def min_long(self) -> Union[int, float]:
+        """Minimum longitude to search from."""
+        return self._min_long
+    
+    @property
+    def max_lat(self) -> Union[int, float]:
+        """Maximum latitude to search from."""
+        return self._max_lat
+    
+    @property
+    def max_long(self) -> Union[int, float]:
+        """Maximum longitude to search from."""
+        return self._max_long
+    
+    @min_lat.setter
+    @_LocationFilter._type_check("min_lat")
+    def min_lat(self, min_lat: Union[int, float]) -> None:
+        self._set_position(
+            min_lat, "_min_lat", "latitude", "min", MIN_LATITUDE)
+    
+    @min_long.setter
+    @_LocationFilter._type_check("min_long")
+    def min_long(self, min_long: Union[int, float]) -> None:
+        self._set_position(
+            min_long, "_min_long", "longitude", "min", RECT_MIN_LONGITUDE)
+    
+    @max_lat.setter
+    @_LocationFilter._type_check("max_lat")
+    def max_lat(self, max_lat: Union[int, float]) -> None:
+        self._set_position(
+            max_lat, "_max_lat", "latitude", "max", MAX_LATITUDE)
+    
+    @max_long.setter
+    @_LocationFilter._type_check("max_long")
+    def max_long(self, max_long: Union[int, float]) -> None:
+        self._set_position(
+            max_long, "_max_long", "longitude", "max", RECT_MAX_LONGITUDE)
