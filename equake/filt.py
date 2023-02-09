@@ -9,7 +9,7 @@ are way too many recorded earthquakes for them all to be retrieved.
 from datetime import datetime, timedelta
 from typing import Callable, Union
 
-from ._utils import _get_type_error
+from ._utils import _get_type_error, _method_type_check, _convert_units
 
 
 DEFAULT_START_END_TIME_DAYS_GAP = 30
@@ -21,6 +21,13 @@ MAX_LONGITUDE = 180
 # To allow rectangles to cross the date line.
 RECT_MIN_LONGITUDE = MIN_LONGITUDE * 2
 RECT_MAX_LONGITUDE = MAX_LONGITUDE * 2
+# For the circle location filter class.
+MIN_RADIUS = 0
+MAX_RADIUS = 180
+# Units.
+KM = "km"
+MI = "mi"
+LENGTH_UNITS = {KM: 1, MI: 1.609344}
 
 
 class EarthquakeFilter:
@@ -29,7 +36,7 @@ class EarthquakeFilter:
     settings for various data points.
     """
 
-    def __init__(self) -> None:
+    def __init__(self) -> None: #TODO once all sub-filters complete.
         pass
 
 
@@ -93,8 +100,7 @@ class TimeFilter:
     def _set_start(self, start: datetime) -> None:
         # Sets the internal start time, validating it too.
         if start > self._end:
-            raise ValueError(
-                "Start time must not be later than end time.")
+            raise ValueError("Start time must not be later than end time.")
         self._start = start
     
     def _set_end(self, end: datetime) -> None:
@@ -124,25 +130,22 @@ class TimeFilter:
     
     @property
     def updated(self) -> datetime:
-        """Minimum updated time."""
+        """Earliest updated time required."""
         return self._updated
     
     @start.setter
+    @_method_type_check("start", datetime)
     def start(self, start: datetime) -> None:
-        if not isinstance(start, datetime):
-            raise _get_type_error("start", datetime, start)
         self._set_start(start)
     
     @end.setter
+    @_method_type_check("end", datetime)
     def end(self, end: datetime) -> None:
-        if not isinstance(end, datetime):
-            raise _get_type_error("end", datetime, end)
         self._set_end(end)
     
     @updated.setter
+    @_method_type_check("updated", datetime)
     def updated(self, updated: datetime) -> None:
-        if not isinstance(updated, datetime):
-            raise _get_type_error("updated", datetime, updated)
         self._updated = updated
 
 
@@ -150,16 +153,8 @@ class _LocationFilter:
     """Private base class for any location filter classes."""
 
     def _type_check(identifier: str) -> Callable:
-        # Decorator to ensure entered lat/long is numeric.
-        def decorator(func: Callable) -> Callable:
-            def wrapper(
-                self: _LocationFilter, value: Union[int, float]
-            ) -> None:
-                if not isinstance(value, (int, float)):
-                    raise _get_type_error(identifier, (int, float), value)
-                func(self, value)
-            return wrapper
-        return decorator
+        # Validates that latitude/longitude is numeric.
+        return _method_type_check(identifier, (int, float))
 
 
 class RectLocationFilter(_LocationFilter):
@@ -186,10 +181,11 @@ class RectLocationFilter(_LocationFilter):
 
             `max_long` - the maximum longitude to search from.
             Range: minimum longitude < maximum longitude <= 360
-        
+
+            All parameters must be integers or floats.
         Note:
             Usually, longitude ranges from -180 to 180. However, the range
-            has been doubled to -360 to 360. This allows rectangles to
+            has been doubled to -360 to 360, allowing rectangles to
             cross the International Date Line as needed.
 
             For example, searching from longitude -200 and -100 would be
@@ -288,3 +284,187 @@ class RectLocationFilter(_LocationFilter):
     def max_long(self, max_long: Union[int, float]) -> None:
         self._set_position(
             max_long, "_max_long", "longitude", "max", RECT_MAX_LONGITUDE)
+
+
+class _CircleLocationFilter(_LocationFilter):
+    """
+    Private base class for the location filters involving a
+    circle and its radius.
+    """
+
+    def __init__(
+        self, lat: Union[int, float], long: Union[int, float]
+    ) -> None:
+        for name, value in (("lat", lat), ("long", long)):
+            if not isinstance(value, (int, float)):
+                raise _get_type_error(name, (int, float), value)
+        self._set_lat(lat)
+        self._set_long(long)
+    
+    def _set_lat(self, lat: Union[int, float]) -> None:
+        # Validates and sets the latitude.
+        if lat < MIN_LATITUDE:
+            raise ValueError(f"Latitude must not be less than {MIN_LATITUDE}")
+        if lat > MAX_LATITUDE:
+            raise ValueError(
+                f"Latitude must not be greater than {MAX_LATITUDE}")
+        self._lat = lat
+    
+    def _set_long(self, long: Union[int, float]) -> None:
+        # Validates and sets the longitude.
+        if long < MIN_LONGITUDE:
+            raise ValueError(
+                f"Longitude must not be less than {MIN_LONGITUDE}")
+        if long > MAX_LONGITUDE:
+            raise ValueError(
+                f"Longitude must not be greater than {MAX_LONGITUDE}")
+        self._long = long
+    
+    @property
+    def lat(self) -> Union[int, float]:
+        """Latitude of the point."""
+        return self._lat
+    
+    @property
+    def long(self) -> Union[int, float]:
+        """Longitude of the point."""
+        return self._long
+    
+    @lat.setter
+    @_LocationFilter._type_check("lat")
+    def lat(self, lat: Union[int, float]) -> None:
+        self._set_lat(lat)
+    
+    @long.setter
+    @_LocationFilter._type_check("long")
+    def long(self, long: Union[int, float]) -> None:
+        self._set_long(long)
+
+
+class CircleLocationFilter(_CircleLocationFilter):
+    """
+    Allows earthquakes to be searched by the
+    number of degrees within the radius of a point.
+    """
+
+    def __init__(
+        self, lat: Union[int, float], long: Union[int, float],
+        radius: Union[int, float]) -> None:
+        """
+        Creates a new `CircleLocationFilter` object.
+
+        Parameters:
+            `lat` - the latitude of the point.
+            Range: -90 <= latitude <= 90
+
+            `long`- the longitude of the point.
+            Range: -180 <= longitude <= 180
+
+            `radius` - the maximum number of degrees to search
+            for from the point.
+            Range: 0 <= radius <= 180
+
+            All parameters must be integers or floats.
+        """
+        super().__init__(lat, long)
+        if not isinstance(radius, (int, float)):
+            raise _get_type_error("radius", (int, float), radius)
+        self._set_radius(radius)
+    
+    def _set_radius(self, radius: Union[int, float]) -> None:
+        # Validates and sets the radius.
+        if radius < MIN_RADIUS:
+            raise ValueError(f"Radius must not be less than {MIN_RADIUS}")
+        if radius > MAX_RADIUS:
+            raise ValueError(f"Radius must not be greater than {MIN_RADIUS}")
+        self._radius = radius
+    
+    def __repr__(self) -> str:
+        return f"CircleLocationFilter("\
+            f"{repr(self.lat)}, {repr(self.long)}, {repr(self.radius)})"
+    
+    def __str__(self) -> str:
+        return f"Latitude: {self.lat}\nLongitude: {self.long}\n"\
+            f"Radius (degrees): {self.radius}"
+    
+    @property
+    def radius(self) -> Union[int, float]:
+        """Radius of the point in degrees."""
+        return self._radius
+
+    @radius.setter
+    @_method_type_check("radius", (int, float))
+    def radius(self, radius: Union[int, float]) -> None:
+        self._set_radius(radius)
+
+
+class CircleDistanceLocationFilter(_CircleLocationFilter):
+    """
+    Allows earthquakes to be searched within
+    a given distance from a point.
+    """
+
+    def __init__(
+        self, lat: Union[int, float], long: Union[int, float],
+        radius: Union[int, float], radius_unit: str = KM) -> None:
+        """
+        Creates a new `CircleDistanceLocationFilter` object.
+
+        Parameters:
+            `lat` [int/float] - the latitude of the point.
+            Range: -90 <= latitude <= 90
+
+            `long` [int/float] - the longitude of the point.
+            Range: -180 <= longitude <= 180
+
+            `radius` [int/float] - the maximum distance from the point
+            to search for earthquakes.
+            Range: radius >= 0
+
+            `radius_unit` [str['km'/'mi']] - the unit which the radius
+            is in, either kilometres ('km') or miles ('mi'). Default: 'km'
+        """
+        super().__init__(lat, long)
+        radius_unit = radius_unit.strip()
+        if radius_unit == MI:
+            radius = _convert_units(radius, MI, KM, LENGTH_UNITS)
+        elif radius_unit != KM:
+            raise ValueError(
+                f"Radius unit must be '{KM}' or '{MI}', not {radius_unit}")
+        self._set_radius(radius)
+    
+    def _set_radius(self, radius: Union[int, float]) -> None:
+        # Validates and sets the radius (km).
+        if radius < MIN_RADIUS:
+            raise ValueError(f"Radius must not be less than {MIN_RADIUS}")
+        self._radius = radius
+    
+    def __repr__(self) -> str:
+        return f"CircleDistanceLocationFilter("\
+            f"{repr(self.lat)}, {repr(self.long)}, "\
+            f"{repr(self.radius_km)}, '{KM}')"
+    
+    def __str__(self) -> str:
+        return f"Latitude {self.lat}\nLongitude: {self.long}\n"\
+            f"Radius (km): {self.radius_km}\nRadius (mi): {self.radius_mi}"
+    
+    @property
+    def radius_km(self) -> Union[int, float]:
+        """Radius of the point in kilometres."""
+        return self._radius
+    
+    @property
+    def radius_mi(self) -> Union[int, float]:
+        """Radius of the point in miles."""
+        return _convert_units(self.radius_km, KM, MI, LENGTH_UNITS)
+    
+    @radius_km.setter
+    @_method_type_check("radius_km", (int, float))
+    def radius_km(self, radius_km: Union[int, float]) -> None:
+        return self._set_radius(radius_km)
+    
+    @radius_mi.setter
+    @_method_type_check("radius_mi", (int, float))
+    def radius_mi(self, radius_mi: Union[int, float]) -> None:
+        return self._set_radius(
+            _convert_units(radius_mi, MI, KM, LENGTH_UNITS))

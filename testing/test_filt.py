@@ -111,13 +111,11 @@ class TimeFilterTest(unittest.TestCase):
                             })
     
     def test_repr(self) -> None:
-        # Repr form of TimeFilter is the direct object without the module name.
-        # And the datetime object includes the module name (datetime).
+        # The datetime object includes the module name (datetime).
         import datetime
-        from equake.filt import TimeFilter
         for _ in range(100):
             time_filter = filt.TimeFilter()
-            eval_time_filter = eval(repr(time_filter))
+            eval_time_filter = eval(f"filt.{repr(time_filter)}")
             self.assertEqual(time_filter.start, eval_time_filter.start)
             self.assertEqual(time_filter.end, eval_time_filter.end)
             self.assertEqual(time_filter.updated, eval_time_filter.updated)
