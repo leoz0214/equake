@@ -38,6 +38,22 @@ class UtilsTest(unittest.TestCase):
             self.assertEqual(
                 f"'{str(getattr(bad_data_type, '__name__', 'None'))}'",
                 message_bad_type)
+    
+    def test_convert_units(self) -> None:
+        for _ in range(100):
+            value = random.uniform(0, 1000000)
+            units = ["".join(
+                chr(random.randint(1, 1000000))
+                for __ in range(random.randint(2, 100)))
+                for _ in range(random.randint(2, 10))]
+            units_dict = {
+                unit: random.uniform(0.0000001, 10000000) for unit in units
+            }
+            new_value = _utils._convert_units(
+                value, units[0], units[1], units_dict)
+            self.assertEqual(
+                new_value,
+                value * (units_dict[units[0]] / units_dict[units[1]]))
 
 
 if __name__ == "__main__":

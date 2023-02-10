@@ -9,7 +9,7 @@ are way too many recorded earthquakes for them all to be retrieved.
 from datetime import datetime, timedelta
 from typing import Callable, Union
 
-from ._utils import _get_type_error, _method_type_check, _convert_units
+from ._utils import _convert_units, _get_type_error, _method_type_check,
 
 
 DEFAULT_START_END_TIME_DAYS_GAP = 30
@@ -376,7 +376,7 @@ class CircleLocationFilter(_CircleLocationFilter):
         if radius < MIN_RADIUS:
             raise ValueError(f"Radius must not be less than {MIN_RADIUS}")
         if radius > MAX_RADIUS:
-            raise ValueError(f"Radius must not be greater than {MIN_RADIUS}")
+            raise ValueError(f"Radius must not be greater than {MAX_RADIUS}")
         self._radius = radius
     
     def __repr__(self) -> str:
@@ -425,7 +425,10 @@ class CircleDistanceLocationFilter(_CircleLocationFilter):
             is in, either kilometres ('km') or miles ('mi'). Default: 'km'
         """
         super().__init__(lat, long)
-        radius_unit = radius_unit.strip()
+        # Allow for leading/trailing whitespace.
+        if not isinstance(radius_unit, str):
+            raise _get_type_error("radius_unit", str, radius_unit)
+        radius_unit = radius_unit.strip() 
         if radius_unit == MI:
             radius = _convert_units(radius, MI, KM, LENGTH_UNITS)
         elif radius_unit != KM:
