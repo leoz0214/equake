@@ -9,7 +9,7 @@ are way too many recorded earthquakes for them all to be retrieved.
 from datetime import datetime, timedelta
 from typing import Callable, Union
 
-from ._utils import _convert_units, _get_type_error, _method_type_check,
+from ._utils import _convert_units, _get_type_error, _method_type_check
 
 
 DEFAULT_START_END_TIME_DAYS_GAP = 30
@@ -24,10 +24,13 @@ RECT_MAX_LONGITUDE = MAX_LONGITUDE * 2
 # For the circle location filter class.
 MIN_RADIUS = 0
 MAX_RADIUS = 180
+# For the intensity filter class.
+MIN_INTENSITY = 0
+MAX_INTENSITY = 12
 # Units.
 KM = "km"
 MI = "mi"
-LENGTH_UNITS = {KM: 1, MI: 1.609344}
+DISTANCE_UNITS = {KM: 1, MI: 1.609344}
 
 
 class EarthquakeFilter:
@@ -430,7 +433,7 @@ class CircleDistanceLocationFilter(_CircleLocationFilter):
             raise _get_type_error("radius_unit", str, radius_unit)
         radius_unit = radius_unit.strip() 
         if radius_unit == MI:
-            radius = _convert_units(radius, MI, KM, LENGTH_UNITS)
+            radius = _convert_units(radius, MI, KM, DISTANCE_UNITS)
         elif radius_unit != KM:
             raise ValueError(
                 f"Radius unit must be '{KM}' or '{MI}', not {radius_unit}")
@@ -459,7 +462,7 @@ class CircleDistanceLocationFilter(_CircleLocationFilter):
     @property
     def radius_mi(self) -> Union[int, float]:
         """Radius of the point in miles."""
-        return _convert_units(self.radius_km, KM, MI, LENGTH_UNITS)
+        return _convert_units(self.radius_km, KM, MI, DISTANCE_UNITS)
     
     @radius_km.setter
     @_method_type_check("radius_km", (int, float))
@@ -470,4 +473,275 @@ class CircleDistanceLocationFilter(_CircleLocationFilter):
     @_method_type_check("radius_mi", (int, float))
     def radius_mi(self, radius_mi: Union[int, float]) -> None:
         return self._set_radius(
-            _convert_units(radius_mi, MI, KM, LENGTH_UNITS))
+            _convert_units(radius_mi, MI, KM, DISTANCE_UNITS))
+
+
+class _RangeFilter:
+    """Private base class for range filters by a min/max value."""
+
+    def __init__(
+        self, _min: Union[int, float],
+        _max: Union[int, float], value_name: str,
+        actual_min: Union[int, float] = float("-inf"),
+        actual_max: Union[int, float] = float("inf")
+    ) -> None:
+        self._actual_min = actual_min
+        self._actual_max = actual_max
+        self._value_name = value_name
+        if not isinstance(_min, (int, float)):
+            raise _get_type_error("_min", (int, float), _min)
+        self._set_min(_min)
+        if not isinstance(_max, (int, float)):
+            raise _get_type_error("_max", (int, float), _max)
+        self._set_max(_max)
+    
+    def _type_check(identifier: str) -> Callable:
+        # Decorator to check an input value is numeric (int/float).
+        return _method_type_check(identifier, (int, float))
+    
+    def _set_min(self, _min: Union[int, float]) -> None:
+        # Validates and sets the minimum value.
+        if _min < self._actual_min:
+            raise ValueError(
+                f"{self._value_name.title()} must not be "
+                f"less than {self._actual_min}")
+        if _min > getattr(self, "_max", float("inf")):
+            raise ValueError(
+                f"Minimum {self._value_name} must not be "
+                f"greater than the maximum {self._value_name}.")
+        self._min = _min
+    
+    def _set_max(self, _max: Union[int, float]) -> None:
+        # Validates and sets the maximum value.
+        if _max > self._actual_max:
+            raise ValueError(
+                f"{self._value_name.title()} must not be "
+                f"greater than {self._actual_max}")
+        if _max < getattr(self, "_min", float("-inf")):
+            raise ValueError(
+                f"Maximum {self._value_name} must not be "
+                f"less than minimum {self._value_name}.")
+        self._max = _max
+
+
+class DepthFilter(_RangeFilter):
+    """Allows earthquakes to be searched by depth."""
+
+    def __init__(
+        self, min_depth: Union[int, float] = float("-inf"),
+        max_depth: Union[int, float] = float("inf"), unit: str = KM) -> None:
+        """
+        Creates a new `DepthFilter` object.
+
+        Parameters:
+            `min_depth` [int/float] - the minimum depth to search from.
+            Range: negative infinity <= minimum depth <= maximum depth
+            Default: negative infinity (no minimum)
+
+            `max_depth` [int/float] - the maximum depth to search from.
+            Range: minimum depth <= maximum depth <= positive infinity
+            Default: positive infinity (no maximum)
+
+            `unit` [str['km'/'mi']] - the unit the depths are in, either
+            kilometres ('km') or miles ('mi'). Default: 'km'
+        
+        Note: it may seem strange that depth can be recorded as negative,
+        as that would imply the earthquake occurred above the surface.
+        This can happen when the earthquake depth is very shallow.
+        """
+        unit = unit.strip()
+        if unit == MI:
+            min_depth = _convert_units(min_depth, MI, KM, DISTANCE_UNITS)
+            max_depth = _convert_units(max_depth, MI, KM, DISTANCE_UNITS)
+        elif unit != KM:
+            raise ValueError(
+                f"Unit must be either '{KM}' or '{MI}', not '{unit}'")
+        super().__init__(min_depth, max_depth, "depth")
+    
+    def __repr__(self) -> str:
+        _min = (
+            repr(self.min_km) if self.min_km != float("-inf")
+            else "float('inf')")
+        _max = (
+            repr(self.max_km) if self.max_km != float("inf")
+            else "float('inf')")
+        return f"DepthFilter({_min}, {_max}, '{KM}')"
+    
+    def __str__(self) -> str:
+        lines = []
+        if self.min_km != float("-inf"):
+            lines.append(f"Minimum depth: {self.min_km}km ({self.min_mi}mi)")
+        else:
+            lines.append(f"Minimum depth: No restriction")
+        if self.max_km != float("inf"):
+            lines.append(f"Maximum depth: {self.min_km}km ({self.min_mi}mi)")
+        else:
+            lines.append(f"Maximum depth: No restriction")
+        return "\n".join(lines)
+    
+    @property
+    def min_km(self) -> Union[int, float]:
+        """Minimum depth to search from in kilometres."""
+        return self._min
+    
+    @property
+    def min_mi(self) -> Union[int, float]:
+        """Minimum depth to search from in miles."""
+        return _convert_units(self.min_km, KM, MI, DISTANCE_UNITS)
+    
+    @property
+    def max_km(self) -> Union[int, float]:
+        """Maximum depth to search from in kilometres."""
+        return self._max
+    
+    @property
+    def max_mi(self) -> Union[int, float]:
+        """Maximum depth to search from in miles."""
+        return _convert_units(self.max_km, KM, MI, DISTANCE_UNITS)
+    
+    @min_km.setter
+    @_RangeFilter._type_check("min_km")
+    def min_km(self, min_km: Union[int, float]) -> None:
+        self._set_min(min_km)
+    
+    @min_mi.setter
+    @_RangeFilter._type_check("min_mi")
+    def min_mi(self, min_mi: Union[int, float]) -> None:
+        self._set_min(_convert_units(min_mi, MI, KM, DISTANCE_UNITS))
+    
+    @max_km.setter
+    @_RangeFilter._type_check("max_km")
+    def max_km(self, max_km: Union[int, float]) -> None:
+        self._set_max(max_km)
+    
+    @max_mi.setter
+    @_RangeFilter._type_check("max_mi")
+    def max_mi(self, max_mi: Union[int, float]) -> None:
+        self._set_max(_convert_units(max_mi, MI, KM, DISTANCE_UNITS))
+
+
+class MagnitudeFilter(_RangeFilter):
+    """
+    Allows earthquakes to be searched by magnitude.
+    The scale used is the Richter Scale.
+    """
+
+    def __init__(
+        self, min_mag: Union[int, float] = float("-inf"),
+        max_mag: Union[int, float] = float("inf")) -> None:
+        """
+        Creates a new `MagnitudeFilter` object.
+
+        Parameters:
+            `min_mag` - the minimum magnitude to search from.
+            Range: negative infinity <= minimum <= maximum
+            Default: negative infinity (no minimum)
+
+            `max_mag` - the maximum magnitude to search from.
+            Range: minimum <= maximum <= positive infinity
+            Default: positive infinity (no maximum)
+
+            Both parameters are integers or floats.
+        
+        Note: as the Richter Scale is logarithmic, magnitude can
+        indeed be negative, but earthquakes with negative
+        magnitudes are extremely weak and insignificant.
+        """
+        super().__init__(min_mag, max_mag, "magnitude")
+    
+    def __repr__(self) -> str:
+        _min = repr(self.min) if self.min != float("-inf") else "float('-inf')"
+        _max = repr(self.max) if self.max != float("inf") else "float('inf')"
+        return f"MagnitudeFilter({_min}, {_max})"
+    
+    def __str__(self) -> str:
+        lines = []
+        if self.min != float("-inf"):
+            lines.append(f"Minimum magnitude: {self.min}")
+        else:
+            lines.append(f"Minimum magnitude: No restriction")
+        if self.max != float("inf"):
+            lines.append(f"Maximum magnitude: {self.max}")
+        else:
+            lines.append(f"Maximum magnitude: No restriction")
+        return "\n".join(lines)
+    
+    @property
+    def min(self) -> Union[int, float]:
+        """Minimum magnitude to search from."""
+        return self._min
+    
+    @property
+    def max(self) -> Union[int, float]:
+        """Maximum magnitude to search from."""
+        return self._max
+    
+    @min.setter
+    @_RangeFilter._type_check("min")
+    def min(self, min_mag: Union[int, float]) -> None:
+        return self._set_min(min_mag)
+    
+    @max.setter
+    @_RangeFilter._type_check("max")
+    def max(self, max_mag: Union[int, float]) -> None:
+        return self._set_max(max_mag)
+    
+
+class IntensityFilter(_RangeFilter):
+    """
+    Allows earthquakes to be searched by maximum intensity.
+    The scale used is the Modified Mercalli intensity scale (MMI).
+    """
+
+    def __init__(
+        self, min_intensity: Union[int, float] = MIN_INTENSITY,
+        max_intensity: Union[int, float] = MAX_INTENSITY) -> None:
+        """
+        Creates a new `IntensityFilter` object.
+
+        Parameters:
+            `min_intensity` - the minimum intensity to search from.
+            Range: 0 <= minimum intensity <= maximum intensity
+            Default: 0
+
+            `max_intensity` - the maximum intensity to search from.
+            Range: minimum intensity <= maximum intensity <= 12
+            Default: 12
+
+            Both parameters are integers or floats.
+        
+        Note: it is the maximum MMI of an earthquake as that is
+        considered 'intensity'.
+        Also, intensity is not to be confused with magnitude.
+        For information on the Modified Mercalli intensity scale, see:
+        https://en.wikipedia.org/wiki/Modified_Mercalli_intensity_scale
+        """
+        super().__init__(
+            min_intensity, max_intensity, "intensity",
+            MIN_INTENSITY, MAX_INTENSITY)
+    
+    @property
+    def min(self) -> Union[int, float]:
+        """Minimum intensity to search from."""
+        return self._min
+
+    @property
+    def max(self) -> Union[int, float]:
+        """Maximum intensity to search from."""
+        return self._max
+    
+    def __repr__(self) -> str:
+        return f"IntensityFilter({repr(self.min)}, {repr(self.max)})"
+    
+    def __str__(self) -> str:
+        return f"Minimum intensity: {self.min}\nMaximum intensity: {self.max}"
+    
+    @min.setter
+    @_RangeFilter._type_check("min")
+    def min(self, min_intensity: Union[int, float]) -> None:
+        self._set_min(min_intensity)
+    
+    @max.setter
+    @_RangeFilter._type_check("max")
+    def max(self, max_intensity: Union[int, float]) -> None:
+        self._set_max(max_intensity)
