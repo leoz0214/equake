@@ -549,19 +549,24 @@ class DepthFilter(_RangeFilter):
         as that would imply the earthquake occurred above the surface.
         This can happen when the earthquake depth is very shallow.
         """
+        # Initialise first, if miles, account for unit after.
+        super().__init__(min_depth, max_depth, "depth")
+        if not isinstance(unit, str):
+            raise _get_type_error("unit", str, unit)
         unit = unit.strip()
         if unit == MI:
-            min_depth = _convert_units(min_depth, MI, KM, DISTANCE_UNITS)
-            max_depth = _convert_units(max_depth, MI, KM, DISTANCE_UNITS)
+            # Temporarily set min to -inf so max (mi) can be set below min (km).
+            self.min_mi = float("-inf")
+            self.max_mi = max_depth
+            self.min_mi = min_depth
         elif unit != KM:
             raise ValueError(
                 f"Unit must be either '{KM}' or '{MI}', not '{unit}'")
-        super().__init__(min_depth, max_depth, "depth")
     
     def __repr__(self) -> str:
         _min = (
             repr(self.min_km) if self.min_km != float("-inf")
-            else "float('inf')")
+            else "float('-inf')")
         _max = (
             repr(self.max_km) if self.max_km != float("inf")
             else "float('inf')")
@@ -572,11 +577,11 @@ class DepthFilter(_RangeFilter):
         if self.min_km != float("-inf"):
             lines.append(f"Minimum depth: {self.min_km}km ({self.min_mi}mi)")
         else:
-            lines.append(f"Minimum depth: No restriction")
+            lines.append("Minimum depth: No restriction")
         if self.max_km != float("inf"):
             lines.append(f"Maximum depth: {self.min_km}km ({self.min_mi}mi)")
         else:
-            lines.append(f"Maximum depth: No restriction")
+            lines.append("Maximum depth: No restriction")
         return "\n".join(lines)
     
     @property
@@ -659,11 +664,11 @@ class MagnitudeFilter(_RangeFilter):
         if self.min != float("-inf"):
             lines.append(f"Minimum magnitude: {self.min}")
         else:
-            lines.append(f"Minimum magnitude: No restriction")
+            lines.append("Minimum magnitude: No restriction")
         if self.max != float("inf"):
             lines.append(f"Maximum magnitude: {self.max}")
         else:
-            lines.append(f"Maximum magnitude: No restriction")
+            lines.append("Maximum magnitude: No restriction")
         return "\n".join(lines)
     
     @property

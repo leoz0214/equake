@@ -373,5 +373,163 @@ class LocationFilterTest(unittest.TestCase):
                         self.assertAlmostEqual(circle_filter.radius_mi, radius)
 
 
+class RangeFilterTest(unittest.TestCase):
+    """Unit tests for the range filter classes."""
+
+    def test_depth(self) -> None:
+        """Tests the `DepthFilter` class."""
+        for _ in range(10000):
+            lower = random.uniform(-10000, 10000)
+            upper = random.uniform(-5000, 15000)
+            unit = random.choice(("km", " km ", "km ", "mi", " mi ", "XXX"))
+            if unit.strip() not in ("km", "mi"):
+                with self.assertRaises(ValueError):
+                    filt.DepthFilter(lower, upper, unit)
+                continue
+            if random.random() < 0.1:
+                depth_filter = filt.DepthFilter(lower, unit=unit)
+                upper = float("inf")
+            elif random.random() < 0.1:
+                depth_filter = filt.DepthFilter(max_depth=upper, unit=unit)
+                lower = float("-inf")
+            elif random.random() < 0.02:
+                with self.assertRaises(TypeError):
+                    filt.DepthFilter("This", "is erroneous!")
+                continue
+            elif upper < lower:
+                with self.assertRaises(ValueError):
+                    filt.DepthFilter(lower, upper, unit)
+                continue
+            else:
+                depth_filter = filt.DepthFilter(lower, upper, unit)
+            if random.random() < 0.05:
+                depth_filter = eval("filt." + repr(depth_filter))
+            if unit.strip() == "km":
+                self.assertAlmostEqual(depth_filter.min_km, lower)
+                self.assertAlmostEqual(depth_filter.max_km, upper)
+            else:
+                self.assertAlmostEqual(depth_filter.min_mi, lower)
+                self.assertAlmostEqual(depth_filter.max_mi, upper)
+            for i in range(4):
+                if random.random() < 0.1:
+                    for attr in ("min_km", "min_mi", "max_km", "max_mi"):
+                        with self.assertRaises(TypeError):
+                            setattr(depth_filter, attr, "Nonsense")
+                elif i % 2 == 0:
+                    new = random.uniform(-10000, 10000)
+                    if new > depth_filter.max_mi:
+                        with self.assertRaises(ValueError):
+                            depth_filter.min_mi = new
+                    elif new < depth_filter.max_km:
+                        depth_filter.min_km = new
+                        self.assertAlmostEqual(depth_filter.min_km, new)
+                    else:
+                        with self.assertRaises(ValueError):
+                            depth_filter.min_km = new
+                        depth_filter.min_mi = float("-inf")
+                        self.assertEqual(depth_filter.min_mi, float("-inf"))
+                else:
+                    new = random.uniform(-5000, 15000)
+                    if new < depth_filter.min_km:
+                        with self.assertRaises(ValueError):
+                            depth_filter.max_km = new
+                    elif new > depth_filter.min_mi:
+                        depth_filter.max_mi = new
+                        self.assertAlmostEqual(depth_filter.max_mi, new)
+                    else:
+                        with self.assertRaises(ValueError):
+                            depth_filter.max_mi = new
+                        depth_filter.max_km = float("inf")
+                        self.assertEqual(depth_filter.max_km, float("inf"))
+    
+    def test_magnitude(self) -> None:
+        """Test the `MagnitudeFilter` class."""
+        for _ in range(10000):
+            lower = random.uniform(-2, 8)
+            upper = random.uniform(0, 10)
+            if random.random() < 0.1:
+                mag_filter = filt.MagnitudeFilter(lower)
+                upper = float("inf")
+            elif random.random() < 0.1:
+                mag_filter = filt.MagnitudeFilter(max_mag=upper)
+                lower = float("-inf")
+            elif random.random() < 0.02:
+                with self.assertRaises(TypeError):
+                    filt.MagnitudeFilter(filt, TypeError)
+                continue
+            elif upper < lower:
+                with self.assertRaises(ValueError):
+                    filt.MagnitudeFilter(lower, upper)
+                continue
+            else:
+                mag_filter = filt.MagnitudeFilter(lower, upper)
+            if random.random() < 0.05:
+                mag_filter = eval("filt." + repr(mag_filter))
+            self.assertEqual(mag_filter.min, lower)
+            self.assertEqual(mag_filter.max, upper)
+            for i in range(4):
+                if random.random() < 0.1:
+                    for attr in ("min", "max"):
+                        with self.assertRaises(TypeError):
+                            setattr(mag_filter, attr, None)
+                elif i % 2 == 0:
+                    new = random.uniform(-2, 8)
+                    if new > mag_filter.max:
+                        with self.assertRaises(ValueError):
+                            mag_filter.min = new
+                        continue
+                    mag_filter.min = new
+                    self.assertEqual(mag_filter.min, new)
+                else:
+                    new = random.uniform(0, 10)
+                    if new < mag_filter.min:
+                        with self.assertRaises(ValueError):
+                            mag_filter.max = new
+                        continue
+                    mag_filter.max = new
+                    self.assertEqual(mag_filter.max, new)
+
+    def test_intensity(self) -> None:
+        """Tests the `IntensityFilter` class."""
+        for _ in range(10000):
+            lower = random.uniform(-1, 12)
+            upper = random.uniform(0, 13)
+            if not 0 <= lower <= upper <= 12:  
+                with self.assertRaises(ValueError):
+                    filt.IntensityFilter(lower, upper)
+                continue
+            elif random.random() < 0.02:
+                with self.assertRaises(TypeError):
+                    filt.IntensityFilter("Cat", self)
+                continue
+            else:
+                intensity_filter = filt.IntensityFilter(lower, upper)
+            if random.random() < 0.05:
+                intensity_filter = eval("filt." + repr(intensity_filter))
+            self.assertEqual(intensity_filter.min, lower)
+            self.assertEqual(intensity_filter.max, upper)
+            for i in range(4):
+                if random.random() < 0.1:
+                    for attr in ("min", "max"):
+                        with self.assertRaises(TypeError):
+                            setattr(intensity_filter, attr, [5])
+                elif i % 2 == 0:
+                    new = random.uniform(-1, 12)
+                    if new < 0 or new > intensity_filter.max:
+                        with self.assertRaises(ValueError):
+                            intensity_filter.min = new
+                        continue
+                    intensity_filter.min = new
+                    self.assertEqual(intensity_filter.min, new)
+                else:
+                    new = random.uniform(0, 13)
+                    if new > 12 or new < intensity_filter.min:
+                        with self.assertRaises(ValueError):
+                            intensity_filter.max = new
+                        continue
+                    intensity_filter.max = new
+                    self.assertEqual(intensity_filter.max, new)
+
+
 if __name__ == "__main__":
     unittest.main()
