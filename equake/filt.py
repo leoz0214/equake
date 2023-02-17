@@ -1,7 +1,7 @@
 """
 This module handles the functionality of earthquake filtering,
 which allows you to search for earthquakes that meet particular
-criteria, such as the time started and magnitude.
+criteria, such as the time and magnitude.
 
 In fact, earthquake searches must be done with a filter, as there
 are way too many recorded earthquakes for them all to be retrieved.
@@ -69,45 +69,26 @@ class TimeFilter:
         
         Note: all times are in UTC. Please be careful with local times.
         """
-        if end is None:
-            self._end = datetime.utcnow()
-        elif not isinstance(end, datetime):
-            raise _get_type_error("end", (datetime, None), end)
-        else:
-            self._end = end
-
-        if start is None:
-            try:
-                self._start = self.end - timedelta(DEFAULT_DAYS_GAP)
-            except OverflowError:
-                # Cannot make time earlier from the end.
-                # Only happens if the end time is earlier than
-                # 1st January 1 AD 00:00:00 + default time gap.
-                # Just make the start equal to the end instead.
-                self._start = self.end
-        elif not isinstance(start, datetime):
-            raise _get_type_error("start", (datetime, None), start)
-        else:
-            self._set_start(start)
-        
-        if updated is None:
-            self._updated = self._start
-        elif not isinstance(updated, datetime):
-            raise _get_type_error("updated", (datetime, None), updated)
-        else:
-            self._updated = updated
-    
-    def _set_start(self, start: datetime) -> None:
-        # Sets the internal start time, validating it too.
-        if start > self._end:
-            raise ValueError("Start time must not be later than end time.")
-        self._start = start
-    
-    def _set_end(self, end: datetime) -> None:
-        # Sets the internal end time, validating it too.
-        if end < self.start:
-            raise ValueError("End time must not be earlier than start time.")
-        self._end = end
+        times = {"end": end, "start": start, "updated": updated}
+        for name, _time in times.items(): # Order matters.
+            if _time is None:
+                if name == "end": # First
+                    self.end = datetime.utcnow()
+                if name == "start": # Second
+                    try:
+                        self.start = self.end - timedelta(DEFAULT_DAYS_GAP)
+                    except OverflowError:
+                        # Cannot make time any earlier from the end.
+                        # Only happens if the end time is earlier than
+                        # 1st January 1 AD 00:00:00 + default time gap.
+                        # Just make the start equal to the end instead.
+                        self.start = self.end
+                if name == "updated": # Third
+                    self.updated = self.start
+            elif not isinstance(_time, datetime): # Not a datetime nor None.
+                raise _get_type_error(name, (datetime, None), _time)
+            else: # Just set the time via the corresponding setter.
+                setattr(self, name, _time)
     
     def __repr__(self) -> str:
         return f"TimeFilter({repr(self.start)}, {repr(self.end)}, "\
@@ -134,12 +115,16 @@ class TimeFilter:
     @start.setter
     @_method_type_check("start", datetime)
     def start(self, start: datetime) -> None:
-        self._set_start(start)
+        if hasattr(self, "_end") and start > self.end:
+            raise ValueError("Start time must not be later than end time.")
+        self._start = start
     
     @end.setter
     @_method_type_check("end", datetime)
     def end(self, end: datetime) -> None:
-        self._set_end(end)
+        if hasattr(self, "_start") and end < self.start:
+            raise ValueError("End time must not be earlier than start time.")
+        self._end = end
     
     @updated.setter
     @_method_type_check("updated", datetime)
@@ -181,6 +166,7 @@ class RectLocationFilter(_LocationFilter):
             Range: minimum longitude < maximum longitude <= 360
 
             All parameters must be integers or floats.
+
         Note:
             Usually, longitude ranges from -180 to 180. However, the range
             has been doubled to -360 to 360, allowing rectangles to
