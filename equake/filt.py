@@ -12,8 +12,8 @@ from typing import Callable, Union
 from ._utils import _convert_units, _get_type_error, _method_type_check
 
 
-DEFAULT_START_END_TIME_DAYS_GAP = 30
-
+DEFAULT_DAYS_GAP = 30
+# Earth co-ordinate constants.
 MIN_LATITUDE = -90
 MAX_LATITUDE = 90
 MIN_LONGITUDE = -180
@@ -27,20 +27,18 @@ MAX_RADIUS = 180
 # For the intensity filter class.
 MIN_INTENSITY = 0
 MAX_INTENSITY = 12
+# For the master earthquake filter class.
+MIN_REPORTS = 0
+# Pager: Earthquake severity impact scale.
+GREEN = "green"
+YELLOW = "yellow"
+ORANGE = "orange"
+RED = "red"
+PAGER_LEVELS = (GREEN, YELLOW, ORANGE, RED)
 # Units.
 KM = "km"
 MI = "mi"
 DISTANCE_UNITS = {KM: 1, MI: 1.609344}
-
-
-class EarthquakeFilter:
-    """
-    This class is used as the earthquake filter, storing the
-    settings for various data points.
-    """
-
-    def __init__(self) -> None: #TODO once all sub-filters complete.
-        pass
 
 
 class TimeFilter:
@@ -80,14 +78,13 @@ class TimeFilter:
 
         if start is None:
             try:
-                self._start = self._end - timedelta(
-                    days=DEFAULT_START_END_TIME_DAYS_GAP)
+                self._start = self.end - timedelta(DEFAULT_DAYS_GAP)
             except OverflowError:
                 # Cannot make time earlier from the end.
                 # Only happens if the end time is earlier than
                 # 1st January 1 AD 00:00:00 + default time gap.
                 # Just make the start equal to the end instead.
-                self._start = self._end
+                self._start = self.end
         elif not isinstance(start, datetime):
             raise _get_type_error("start", (datetime, None), start)
         else:
@@ -109,14 +106,12 @@ class TimeFilter:
     def _set_end(self, end: datetime) -> None:
         # Sets the internal end time, validating it too.
         if end < self.start:
-            raise ValueError(
-                "End time must not be earlier than the start time.")
+            raise ValueError("End time must not be earlier than start time.")
         self._end = end
     
     def __repr__(self) -> str:
-        return (
-            f"TimeFilter({repr(self.start)}, {repr(self.end)}, "
-            f"{repr(self.updated)})")
+        return f"TimeFilter({repr(self.start)}, {repr(self.end)}, "\
+            f"{repr(self.updated)})"
     
     def __str__(self) -> str:
         return f"Start: {self.start}\nEnd: {self.end}\nUpdated: {self.updated}"
@@ -436,7 +431,7 @@ class CircleDistanceLocationFilter(_CircleLocationFilter):
             radius = _convert_units(radius, MI, KM, DISTANCE_UNITS)
         elif radius_unit != KM:
             raise ValueError(
-                f"Radius unit must be '{KM}' or '{MI}', not {radius_unit}")
+                f"Radius unit must be '{KM}' or '{MI}'")
         self._set_radius(radius)
     
     def _set_radius(self, radius: Union[int, float]) -> None:
@@ -561,7 +556,7 @@ class DepthFilter(_RangeFilter):
             self.min_mi = min_depth
         elif unit != KM:
             raise ValueError(
-                f"Unit must be either '{KM}' or '{MI}', not '{unit}'")
+                f"Unit must be either '{KM}' or '{MI}'")
     
     def __repr__(self) -> str:
         _min = (
@@ -750,3 +745,223 @@ class IntensityFilter(_RangeFilter):
     @_RangeFilter._type_check("max")
     def max(self, max_intensity: Union[int, float]) -> None:
         self._set_max(max_intensity)
+
+
+class EarthquakeFilter:
+    """
+    This class is used as the earthquake filter, storing the
+    settings for various data points.
+    """
+
+    def __init__(
+        self, time_filter: Union[TimeFilter, None] = None,
+        location_filter: Union[_LocationFilter, None] = None,
+        depth_filter: Union[DepthFilter, None] = None,
+        magnitude_filter: Union[MagnitudeFilter, None] = None,
+        intensity_filter: Union[IntensityFilter, None] = None,
+        pager_level: Union[str, None] = None, min_reports: int = 0) -> None:
+        """
+        Creates a new `EarthquakeFilter` object.
+
+        Parameters:
+            `time_filter` [TimeFilter/None] - allows earthquakes to
+            be filtered based on time. When None, this corresponds
+            to a time filter with all default arguments: TimeFilter().
+            This leads to recent earthquakes being obtained.
+            Default: None
+
+            `location_filter` [RectLocationFilter/CircleLocationFilter
+            /CircleDistanceLocationFilter/None] - allows earthquakes to
+            be filtered based on location. When None, location is irrelevant.
+            A RectLocationFilter is created, spanning the entire Earth.
+            Defeault: None
+
+            `depth_filter` [DepthFilter/None] - allows earthquakes to be
+            filtered based on depth. When None, depth is irrelevant.
+            A DepthFilter is created with no depth restriction.
+            Default: None
+
+            `magnitude_filter` [MagnitudeFilter/None] - allows earthquakes to
+            be filtered based on magnitude. When None, magnitude is irrelevant.
+            A MagnitudeFilter is created with no magnitude restriction.
+            Default: None
+
+            `intensity_filter` [IntensityFilter/None] - allows earthquakes to
+            be filtered based on intensity. When None, intensity is irrelevant.
+            An IntensityFilter is created with no intensity restriction.
+
+            `pager_level` [str['green'/'yellow'/'orange'/'red']/None] - allows
+            earthquakes to be filtered based on a particular PAGER level.
+            The PAGER impact scale highlights the severity of the damage an
+            earthquake causes.
+            Valid PAGER levels: green, yellow, orange, red
+            Impact severity: green (little to none), yellow (slight),
+            orange (moderate), red (severe).
+            When None, the PAGER level is irrelevant.
+            Default: None
+
+            `min_reports` [int] - allows earthquakes to be filtered based on
+            the minimum number of reports from the public.
+            Range: minimum reports >= 0
+            Default: 0
+        """
+        if time_filter is None:
+            self._time_filter = TimeFilter()
+        elif not isinstance(time_filter, TimeFilter):
+            raise _get_type_error(
+                "time_filter", (TimeFilter, None), time_filter)
+        else:
+            self._time_filter = time_filter
+        
+        if location_filter is None:
+            self._location_filter = RectLocationFilter(
+                MIN_LATITUDE, RECT_MIN_LONGITUDE,
+                MAX_LATITUDE, RECT_MAX_LONGITUDE)
+        elif not isinstance(location_filter, _LocationFilter):
+            raise _get_type_error(
+                "location_filter", (RectLocationFilter,
+                CircleLocationFilter, CircleDistanceLocationFilter),
+                location_filter)
+        else:
+            self._location_filter = location_filter
+
+        if depth_filter is None:
+            self._depth_filter = DepthFilter()
+        elif not isinstance(depth_filter, DepthFilter):
+            raise _get_type_error(
+                "depth_filter", (DepthFilter, None), depth_filter)
+        else:
+            self._depth_filter = depth_filter
+        
+        if magnitude_filter is None:
+            self._magnitude_filter = MagnitudeFilter()
+        elif not isinstance(magnitude_filter, MagnitudeFilter):
+            raise _get_type_error(
+                "magnitude_filter", (MagnitudeFilter, None), magnitude_filter)
+        else:
+            self._magnitude_filter = magnitude_filter
+        
+        if intensity_filter is None:
+            self._intensity_filter = IntensityFilter()
+        elif not isinstance(intensity_filter, IntensityFilter):
+            raise _get_type_error(
+                "intensity_filter", (IntensityFilter, None), intensity_filter)
+        else:
+            self._intensity_filter = intensity_filter
+        
+        if pager_level is None:
+            self._pager_level = None
+        elif not isinstance(pager_level, str):
+            raise _get_type_error("pager_level", (str, None), pager_level)
+        else:
+             # Remove surrounding whitespace to allow for it.
+            pager_level = pager_level.strip()
+            if pager_level not in PAGER_LEVELS:
+                raise ValueError(
+                    "PAGER Level must be 'green', 'yellow', 'orange' or 'red'")
+            self._pager_level = pager_level
+        
+        if not isinstance(min_reports, int):
+            raise _get_type_error("min_reports", int, min_reports)
+        if min_reports < MIN_REPORTS:
+            raise ValueError(
+                f"Minimum reports must not be less than {MIN_REPORTS}")
+        self._min_reports = min_reports
+    
+    def __repr__(self) -> str:
+        return f"EarthquakeFilter({repr(self.time_filter)}, "\
+            f"{repr(self.location_filter)}, {repr(self.depth_filter)}, "\
+            f"{repr(self.magnitude_filter)}, {repr(self.intensity_filter)}, "\
+            f"{repr(self.pager_level)}, {self.min_reports})"
+    
+    def __str__(self) -> str:
+        return "----- Earthquake Filter -----\n"\
+            f"--- Time ---\n{self.time_filter}\n\n"\
+            f"--- Location ---\n{self.location_filter}\n\n"\
+            f"--- Depth ---\n{self.depth_filter}\n\n"\
+            f"--- Magnitude ---\n{self.magnitude_filter}\n\n"\
+            f"--- Intensity ---\n{self.intensity_filter}\n\n"\
+            f"--- PAGER level ---\n{self.pager_level}\n\n"\
+            f"--- Minimum reports ---\n{self.min_reports}"
+    
+    @property
+    def time_filter(self) -> TimeFilter:
+        """The time filter object."""
+        return self._time_filter
+    
+    @property
+    def location_filter(self) -> _LocationFilter:
+        """The location filter object."""
+        return self._location_filter
+    
+    @property
+    def depth_filter(self) -> DepthFilter:
+        """The depth filter object."""
+        return self._depth_filter
+    
+    @property
+    def magnitude_filter(self) -> MagnitudeFilter:
+        """The magnitude filter object."""
+        return self._magnitude_filter
+    
+    @property
+    def intensity_filter(self) -> IntensityFilter:
+        """The intensity filter object."""
+        return self._intensity_filter
+    
+    @property
+    def pager_level(self) -> Union[str, None]:
+        """The PAGER level set."""
+        return self._pager_level
+    
+    @property
+    def min_reports(self) -> int:
+        """Minimum number of reports from the public."""
+        return self._min_reports
+    
+    @time_filter.setter
+    @_method_type_check("time_filter", TimeFilter)
+    def time_filter(self, time_filter: TimeFilter) -> None:
+        self._time_filter = time_filter
+
+    @location_filter.setter
+    @_method_type_check("location_filter", (
+        RectLocationFilter, CircleLocationFilter,
+        CircleDistanceLocationFilter))
+    def location_filter(self, location_filter: _LocationFilter) -> None:
+        self._location_filter = location_filter
+    
+    @depth_filter.setter
+    @_method_type_check("depth_filter", DepthFilter)
+    def depth_filter(self, depth_filter: DepthFilter) -> None:
+        self._depth_filter = depth_filter
+    
+    @magnitude_filter.setter
+    @_method_type_check("magnitude_filter", MagnitudeFilter)
+    def magnitude_filter(self, magnitude_filter: MagnitudeFilter) -> None:
+        self._magnitude_filter = magnitude_filter
+    
+    @intensity_filter.setter
+    @_method_type_check("intensity_filter", IntensityFilter)
+    def intensity_filter(self, intensity_filter: IntensityFilter) -> None:
+        self._intensity_filter = intensity_filter
+    
+    @pager_level.setter
+    @_method_type_check("pager_level", (str, None))
+    def pager_level(self, pager_level: Union[str, None]) -> None:
+        if pager_level is None:
+            self._pager_level = None
+            return
+        pager_level = pager_level.strip()
+        if pager_level not in PAGER_LEVELS:
+            raise ValueError(
+                "PAGER level must be 'green', 'yellow', 'orange' or 'red'.")
+        self._pager_level = pager_level
+    
+    @min_reports.setter
+    @_method_type_check("min_reports", int)
+    def min_reports(self, min_reports: int) -> None:
+        if min_reports < MIN_REPORTS:
+            raise ValueError(
+                f"Minimum reports must not be less than {MIN_REPORTS}")
+        self._min_reports = min_reports
