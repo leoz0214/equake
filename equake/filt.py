@@ -12,6 +12,7 @@ from typing import Callable, Union
 from ._utils import _convert_units, _get_type_error, _method_type_check
 
 
+# Default start time and end time difference.
 DEFAULT_DAYS_GAP = 30
 # Earth co-ordinate constants.
 MIN_LATITUDE = -90
@@ -135,8 +136,9 @@ class TimeFilter:
 class _LocationFilter:
     """Private base class for any location filter classes."""
 
-    def _type_check(identifier: str) -> Callable:
-        # Validates that latitude/longitude is numeric.
+    @staticmethod
+    def _lat_long_check(identifier: str) -> Callable:
+        # Decorator validating that latitude/longitude is numeric.
         return _method_type_check(identifier, (int, float))
 
 
@@ -154,16 +156,16 @@ class RectLocationFilter(_LocationFilter):
 
         Parameters:
             `min_lat` - the minimum latitude to search from.
-            Range: -90 <= minimum latitude < maximum latitude
+            Range: -90 <= minimum latitude <= maximum latitude
 
             `min_long` - the minimum longitude to search from.
-            Range: -360 <= minimum longitude < maximum longitude
+            Range: -360 <= minimum longitude <= maximum longitude
 
             `max_lat` - the maximum latitude to search from.
-            Range: minimum latitude < maximum latitude <= 90
+            Range: minimum latitude <= maximum latitude <= 90
 
             `max_long` - the maximum longitude to search from.
-            Range: minimum longitude < maximum longitude <= 360
+            Range: minimum longitude <= maximum longitude <= 360
 
             All parameters must be integers or floats.
 
@@ -177,42 +179,10 @@ class RectLocationFilter(_LocationFilter):
             -180 or 180 lies between the minimum and maximum longitudes,
             the date line is indeed crossed.
         """
-        for value, position, orient, bound, bound_limit in (
-            (min_lat, "min_lat", "latitude", "min", MIN_LATITUDE),
-            (min_long, "min_long", "longitude", "min", RECT_MIN_LONGITUDE),
-            (max_lat, "max_lat", "latitude", "max", MAX_LATITUDE),
-            (max_long, "max_long", "longitude", "max", RECT_MAX_LONGITUDE)
-        ):
-            if not isinstance(value, (int, float)):
-                raise _get_type_error(position, (int, float), value)
-            self._set_position(
-                value, f"_{position}", orient, bound, bound_limit)
-    
-    def _set_position(
-        self, value: Union[int, float], attribute: str,
-        orient: str, bound: str, bound_limit: int) -> None:
-        # Validates and sets either the min/max lat/long.
-        # orient: longitude/latitude, bound: min/max
-        if bound == "min":
-            if value < bound_limit:
-                raise ValueError(
-                    f"Minimum {orient} must not be less than {bound_limit}")
-            # Must ensure min is not greater than max. Get max to do so.
-            _max = getattr(self, attribute.replace("min", "max"), float("inf"))
-            if value > _max:
-                raise ValueError(
-                    f"Minimum {orient} must be less than maximum {orient}")
-        else:
-            if value > bound_limit:
-                raise ValueError(
-                    f"Maximum {orient} must not be greater than {bound_limit}")
-            # Must ensure max is not less than min. Get min to do so.
-            _min = getattr(
-                self, attribute.replace("max", "min"), float("-inf"))
-            if value < _min:
-                raise ValueError(
-                    f"Maximum {orient} must be greater than minimum {orient}")
-        setattr(self, attribute, value)
+        self.min_lat = min_lat
+        self.min_long = min_long
+        self.max_lat = max_lat
+        self.max_long = max_long
     
     def __repr__(self) -> str:
         return "RectLocationFilter("\
@@ -246,64 +216,61 @@ class RectLocationFilter(_LocationFilter):
         return self._max_long
     
     @min_lat.setter
-    @_LocationFilter._type_check("min_lat")
+    @_LocationFilter._lat_long_check("min_lat")
     def min_lat(self, min_lat: Union[int, float]) -> None:
-        self._set_position(
-            min_lat, "_min_lat", "latitude", "min", MIN_LATITUDE)
+        if min_lat < MIN_LATITUDE:
+            raise ValueError(
+                f"Minimum latitude must not be less than {MIN_LATITUDE}")
+        if hasattr(self, "_max_lat") and min_lat > self.max_lat:
+            raise ValueError(
+                "Minimum latitude must not be greater than maximum latitude.")
+        self._min_lat = min_lat
     
     @min_long.setter
-    @_LocationFilter._type_check("min_long")
+    @_LocationFilter._lat_long_check("min_long")
     def min_long(self, min_long: Union[int, float]) -> None:
-        self._set_position(
-            min_long, "_min_long", "longitude", "min", RECT_MIN_LONGITUDE)
+        if min_long < RECT_MIN_LONGITUDE:
+            raise ValueError(
+                "Minimum longitude must not be less than", RECT_MIN_LONGITUDE)
+        if hasattr(self, "_max_long") and min_long > self.max_long:
+            raise ValueError(
+                "Minimum longitude must not be greater than maximum longitude."
+            )
+        self._min_long = min_long
     
     @max_lat.setter
-    @_LocationFilter._type_check("max_lat")
+    @_LocationFilter._lat_long_check("max_lat")
     def max_lat(self, max_lat: Union[int, float]) -> None:
-        self._set_position(
-            max_lat, "_max_lat", "latitude", "max", MAX_LATITUDE)
+        if max_lat > MAX_LATITUDE:
+            raise ValueError(
+                f"Maximum latitude must not be greater than {MAX_LATITUDE}")
+        if hasattr(self, "_min_lat") and max_lat < self.min_lat:
+            raise ValueError(
+                "Maximum latitude must not be less than minimum latitude.")
+        self._max_lat = max_lat
     
     @max_long.setter
-    @_LocationFilter._type_check("max_long")
+    @_LocationFilter._lat_long_check("max_long")
     def max_long(self, max_long: Union[int, float]) -> None:
-        self._set_position(
-            max_long, "_max_long", "longitude", "max", RECT_MAX_LONGITUDE)
+        if max_long > RECT_MAX_LONGITUDE:
+            raise ValueError(
+                "Maximum longitude must not be greater than",
+                RECT_MAX_LONGITUDE)
+        if hasattr(self, "_min_long") and max_long < self.min_long:
+            raise ValueError(
+                "Maximum longitude must not be less than minimum longitude")
+        self._max_long = max_long
 
 
 class _CircleLocationFilter(_LocationFilter):
-    """
-    Private base class for the location filters involving a
-    circle and its radius.
-    """
+    """Private base class for the circle location filters."""
 
     def __init__(
         self, lat: Union[int, float], long: Union[int, float]
     ) -> None:
-        for name, value in (("lat", lat), ("long", long)):
-            if not isinstance(value, (int, float)):
-                raise _get_type_error(name, (int, float), value)
-        self._set_lat(lat)
-        self._set_long(long)
-    
-    def _set_lat(self, lat: Union[int, float]) -> None:
-        # Validates and sets the latitude.
-        if lat < MIN_LATITUDE:
-            raise ValueError(f"Latitude must not be less than {MIN_LATITUDE}")
-        if lat > MAX_LATITUDE:
-            raise ValueError(
-                f"Latitude must not be greater than {MAX_LATITUDE}")
-        self._lat = lat
-    
-    def _set_long(self, long: Union[int, float]) -> None:
-        # Validates and sets the longitude.
-        if long < MIN_LONGITUDE:
-            raise ValueError(
-                f"Longitude must not be less than {MIN_LONGITUDE}")
-        if long > MAX_LONGITUDE:
-            raise ValueError(
-                f"Longitude must not be greater than {MAX_LONGITUDE}")
-        self._long = long
-    
+        self.lat = lat
+        self.long = long
+
     @property
     def lat(self) -> Union[int, float]:
         """Latitude of the point."""
@@ -315,14 +282,23 @@ class _CircleLocationFilter(_LocationFilter):
         return self._long
     
     @lat.setter
-    @_LocationFilter._type_check("lat")
+    @_LocationFilter._lat_long_check("lat")
     def lat(self, lat: Union[int, float]) -> None:
-        self._set_lat(lat)
+        if lat < MIN_LATITUDE:
+            raise ValueError(f"Latitude must not be less than {MIN_LATITUDE}")
+        if lat > MAX_LATITUDE:
+            raise ValueError("Latitude must not be greater than", MAX_LATITUDE)
+        self._lat = lat
     
     @long.setter
-    @_LocationFilter._type_check("long")
+    @_LocationFilter._lat_long_check("long")
     def long(self, long: Union[int, float]) -> None:
-        self._set_long(long)
+        if long < MIN_LONGITUDE:
+            raise ValueError("Longitude must not be less than", MIN_LONGITUDE)
+        if long > MAX_LONGITUDE:
+            raise ValueError(
+                f"Longitude must not be greater than {MAX_LONGITUDE}")
+        self._long = long
 
 
 class CircleLocationFilter(_CircleLocationFilter):
@@ -351,18 +327,8 @@ class CircleLocationFilter(_CircleLocationFilter):
             All parameters must be integers or floats.
         """
         super().__init__(lat, long)
-        if not isinstance(radius, (int, float)):
-            raise _get_type_error("radius", (int, float), radius)
-        self._set_radius(radius)
-    
-    def _set_radius(self, radius: Union[int, float]) -> None:
-        # Validates and sets the radius.
-        if radius < MIN_RADIUS:
-            raise ValueError(f"Radius must not be less than {MIN_RADIUS}")
-        if radius > MAX_RADIUS:
-            raise ValueError(f"Radius must not be greater than {MAX_RADIUS}")
-        self._radius = radius
-    
+        self.radius = radius
+
     def __repr__(self) -> str:
         return f"CircleLocationFilter("\
             f"{repr(self.lat)}, {repr(self.long)}, {repr(self.radius)})"
@@ -379,14 +345,15 @@ class CircleLocationFilter(_CircleLocationFilter):
     @radius.setter
     @_method_type_check("radius", (int, float))
     def radius(self, radius: Union[int, float]) -> None:
-        self._set_radius(radius)
+        if radius < MIN_RADIUS:
+            raise ValueError(f"Radius must not be less than {MIN_RADIUS}")
+        if radius > MAX_RADIUS:
+            raise ValueError(f"Radius must not be greater than {MAX_RADIUS}")
+        self._radius = radius
 
 
 class CircleDistanceLocationFilter(_CircleLocationFilter):
-    """
-    Allows earthquakes to be searched within
-    a given distance from a point.
-    """
+    """Allows earthquakes to be found within a given distance from a point."""
 
     def __init__(
         self, lat: Union[int, float], long: Union[int, float],
@@ -413,18 +380,12 @@ class CircleDistanceLocationFilter(_CircleLocationFilter):
         if not isinstance(radius_unit, str):
             raise _get_type_error("radius_unit", str, radius_unit)
         radius_unit = radius_unit.strip() 
-        if radius_unit == MI:
-            radius = _convert_units(radius, MI, KM, DISTANCE_UNITS)
-        elif radius_unit != KM:
-            raise ValueError(
-                f"Radius unit must be '{KM}' or '{MI}'")
-        self._set_radius(radius)
-    
-    def _set_radius(self, radius: Union[int, float]) -> None:
-        # Validates and sets the radius (km).
-        if radius < MIN_RADIUS:
-            raise ValueError(f"Radius must not be less than {MIN_RADIUS}")
-        self._radius = radius
+        if radius_unit == KM:
+            self.radius_km = radius
+        elif radius_unit == MI:
+            self.radius_mi = radius
+        else:
+            raise ValueError(f"Radius unit must be '{KM}' or '{MI}'")
     
     def __repr__(self) -> str:
         return f"CircleDistanceLocationFilter("\
@@ -448,13 +409,14 @@ class CircleDistanceLocationFilter(_CircleLocationFilter):
     @radius_km.setter
     @_method_type_check("radius_km", (int, float))
     def radius_km(self, radius_km: Union[int, float]) -> None:
-        return self._set_radius(radius_km)
+        if radius_km < MIN_RADIUS: # Min = 0, so unit irrelevant.
+            raise ValueError(f"Radius must not be less than {MIN_RADIUS}")
+        self._radius = radius_km
     
     @radius_mi.setter
     @_method_type_check("radius_mi", (int, float))
     def radius_mi(self, radius_mi: Union[int, float]) -> None:
-        return self._set_radius(
-            _convert_units(radius_mi, MI, KM, DISTANCE_UNITS))
+        self.radius_km = _convert_units(radius_mi, MI, KM, DISTANCE_UNITS)
 
 
 class _RangeFilter:
