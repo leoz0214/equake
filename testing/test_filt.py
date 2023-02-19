@@ -7,6 +7,7 @@ from itertools import combinations
 
 sys.path.append(".")
 from equake import filt
+from equake.filt import *
 
 
 class TimeFilterTest(unittest.TestCase):
@@ -529,6 +530,259 @@ class RangeFilterTest(unittest.TestCase):
                         continue
                     intensity_filter.max = new
                     self.assertEqual(intensity_filter.max, new)
+
+
+class EarthquakeFilterTest(unittest.TestCase):
+    """Tests the `EarthquakeFilter` class."""
+
+    def generate_time_filter(self) -> filt.TimeFilter:
+        return filt.TimeFilter(
+            datetime(
+                random.randint(1, 2022), random.randint(1, 12),
+                random.randint(1, 28)),
+            datetime(
+                random.randint(2023, 9999), random.randint(1, 12),
+                random.randint(1, 28)),
+            updated=datetime(
+                random.randint(1, 2022), random.randint(1, 12),
+                random.randint(1, 28)))
+    
+    def generate_location_filter(self) -> filt._LocationFilter:
+        return random.choice((
+            filt.RectLocationFilter(
+                random.randint(-90, 0), random.randint(-180, 0),
+                random.randint(1, 90), random.randint(1, 180)),
+            filt.CircleLocationFilter(
+                random.randint(-90, 90), random.randint(-180, 180),
+                random.uniform(0, 180)),
+            filt.CircleDistanceLocationFilter(
+                random.randint(-90, 90), random.randint(-180, 180),
+                random.uniform(0, 100000), random.choice(("km", "mi")))))
+    
+    def generate_depth_filter(self) -> filt.DepthFilter:
+        return filt.DepthFilter(
+            random.uniform(-1000, 0), random.uniform(1, 1000),
+            random.choice(("km", "mi")))
+    
+    def generate_magnitude_filter(self) -> filt.MagnitudeFilter:
+        return filt.MagnitudeFilter(
+            random.uniform(-1000, 0), random.uniform(1, 1000))
+    
+    def generate_intensity_filter(self) -> filt.IntensityFilter:
+        return filt.IntensityFilter(random.uniform(0, 6), random.uniform(6, 12))
+    
+    def generate_pager_level(self):
+        return random.choice(
+            ("green", " green", "yellow", "yellow ",
+            "orange", " orange ", "red", " red   ", None))
+    
+    def generate_min_reports(self) -> int:
+        return random.randint(0, 10000)
+
+    def test_init(self) -> None:
+        for _ in range(1000):
+            time_filter = (
+                self.generate_time_filter() if random.random() < 0.9 else None)
+            location_filter = (
+                self.generate_location_filter() if random.random() < 0.9
+                else None)
+            depth_filter = (
+                self.generate_depth_filter() if random.random() < 0.9 else None)
+            magnitude_filter = (
+                self.generate_magnitude_filter() if random.random() < 0.9
+                else None)
+            intensity_filter = (
+                self.generate_intensity_filter() if random.random() < 0.9
+                else None)
+            pager_level = self.generate_pager_level()
+            min_reports = self.generate_min_reports()
+            erroneous = False
+            if random.random() < 0.01:
+                time_filter = "Erroneous"
+                erroneous = True
+            if random.random() < 0.01:
+                location_filter = filt
+                erroneous = True
+            if random.random() < 0.01:
+                depth_filter = filt._LocationFilter()
+                erroneous = True
+            if random.random() < 0.01:
+                magnitude_filter = 7.7
+                erroneous = True
+            if random.random() < 0.01:
+                intensity_filter = TypeError
+                erroneous = True
+            if random.random() < 0.01:
+                pager_level = True
+                erroneous = True
+            if random.random() < 0.01:
+                min_reports = 3.14
+                erroneous = True
+            if erroneous:
+                with self.assertRaises(TypeError):
+                    filt.EarthquakeFilter(
+                        time_filter, location_filter, depth_filter,
+                        magnitude_filter, intensity_filter,
+                        pager_level, min_reports)
+                continue
+            invalid = False
+            if random.random() < 0.01:
+                pager_level = "i n v a l ID"
+                invalid = True
+            if random.random() < 0.01:
+                min_reports = -29489234
+                invalid = True
+            if invalid:
+                with self.assertRaises(ValueError):
+                    filt.EarthquakeFilter(
+                        time_filter, location_filter, depth_filter,
+                        magnitude_filter, intensity_filter,
+                        pager_level, min_reports)
+                continue
+            earthquake_filter = filt.EarthquakeFilter(
+                time_filter, location_filter, depth_filter, magnitude_filter,
+                intensity_filter, pager_level, min_reports)
+            if time_filter is None:
+                self.assertEqual(
+                    earthquake_filter.time_filter.start,
+                    earthquake_filter.time_filter.updated)
+            else:
+                self.assertEqual(
+                    time_filter.__dict__,
+                    earthquake_filter.time_filter.__dict__)
+            if location_filter is None:
+                self.assertEqual(
+                    earthquake_filter.location_filter.min_lat, -90)
+                self.assertEqual(
+                    earthquake_filter.location_filter.min_long, -180)
+                self.assertEqual(
+                    earthquake_filter.location_filter.max_lat, 90)
+                self.assertEqual(
+                    earthquake_filter.location_filter.max_long, 180)
+            else:
+                self.assertEqual(
+                    location_filter.__dict__,
+                    earthquake_filter.location_filter.__dict__)
+            if depth_filter is None:
+                self.assertEqual(
+                    earthquake_filter.depth_filter.min_km, float("-inf"))
+                self.assertEqual(
+                    earthquake_filter.depth_filter.max_mi, float("inf"))
+            else:
+                self.assertEqual(
+                    depth_filter.__dict__,
+                    earthquake_filter.depth_filter.__dict__)
+            if magnitude_filter is None:
+                self.assertEqual(
+                    earthquake_filter.magnitude_filter.min, float("-inf"))
+                self.assertEqual(
+                    earthquake_filter.magnitude_filter.max, float("inf"))
+            else:
+                self.assertEqual(
+                    magnitude_filter.__dict__,
+                    earthquake_filter.magnitude_filter.__dict__)
+            if intensity_filter is None:
+                self.assertEqual(
+                    earthquake_filter.intensity_filter.min, 0)
+                self.assertEqual(
+                    earthquake_filter.intensity_filter.max, 12)
+            else:
+                self.assertEqual(
+                    intensity_filter.__dict__,
+                    earthquake_filter.intensity_filter.__dict__)
+            self.assertEqual(
+                pager_level.strip() if pager_level is not None else None,
+                earthquake_filter.pager_level)
+            self.assertEqual(min_reports, earthquake_filter.min_reports)
+    
+    def test_repr(self) -> None:
+        import datetime
+        for _ in range(100):
+            earthquake_filter = filt.EarthquakeFilter(
+                self.generate_time_filter(),
+                self.generate_location_filter(),
+                self.generate_depth_filter(),
+                self.generate_magnitude_filter(),
+                self.generate_intensity_filter(),
+                self.generate_pager_level(),
+                self.generate_min_reports())
+            evaluated = eval(repr(earthquake_filter))
+            self.assertEqual(
+                earthquake_filter.time_filter.__dict__,
+                evaluated.time_filter.__dict__)
+            self.assertEqual(
+                earthquake_filter.location_filter.__dict__,
+                evaluated.location_filter.__dict__)
+            self.assertEqual(
+                earthquake_filter.depth_filter.__dict__,
+                evaluated.depth_filter.__dict__)
+            self.assertEqual(
+                earthquake_filter.magnitude_filter.__dict__,
+                evaluated.magnitude_filter.__dict__)
+            self.assertEqual(
+                earthquake_filter.intensity_filter.__dict__,
+                evaluated.intensity_filter.__dict__)
+            self.assertEqual(
+                earthquake_filter.pager_level, evaluated.pager_level)
+            self.assertEqual(
+                earthquake_filter.min_reports, evaluated.min_reports)
+    
+    def test_setters(self) -> None:
+        earthquake_filter = filt.EarthquakeFilter()
+        for i in range(1000):
+            erroneous = random.random() < 0.05
+            if erroneous:
+                for attr in (
+                    "time_filter", "location_filter", "depth_filter",
+                    "magnitude_filter", "intensity_filter", "pager_level",
+                    "min_reports"
+                ):
+                    with self.assertRaises(TypeError):
+                        setattr(earthquake_filter, attr, TypeError)
+                continue
+            if i % 7 == 0:
+                new = self.generate_time_filter()
+                earthquake_filter.time_filter = new
+                self.assertEqual(
+                    new.__dict__, earthquake_filter.time_filter.__dict__)
+            if i % 7 == 1:
+                new = self.generate_location_filter()
+                earthquake_filter.location_filter = new
+                self.assertEqual(
+                    new.__dict__, earthquake_filter.location_filter.__dict__)
+            if i % 7 == 2:
+                new = self.generate_depth_filter()
+                earthquake_filter.depth_filter = new
+                self.assertEqual(
+                    new.__dict__, earthquake_filter.depth_filter.__dict__)
+            if i % 7 == 3:
+                new = self.generate_magnitude_filter()
+                earthquake_filter.magnitude_filter = new
+                self.assertEqual(
+                    new.__dict__, earthquake_filter.magnitude_filter.__dict__)
+            if i % 7 == 4:
+                new = self.generate_intensity_filter()
+                earthquake_filter.intensity_filter = new
+                self.assertEqual(
+                    new.__dict__, earthquake_filter.intensity_filter.__dict__)
+            if i % 7 == 5:
+                if random.random() < 0.1:
+                    with self.assertRaises(ValueError):
+                        earthquake_filter.pager_level = "Cat"
+                    continue
+                new = self.generate_pager_level()
+                earthquake_filter.pager_level = new
+                self.assertEqual(
+                    new.strip() if new is not None else None,
+                    earthquake_filter.pager_level)
+            if i % 7 == 6:
+                if random.random() < 0.1:
+                    with self.assertRaises(ValueError):
+                        earthquake_filter.min_reports = (
+                            -self.generate_min_reports())
+                new = self.generate_min_reports()
+                earthquake_filter.min_reports = new
+                self.assertEqual(new, earthquake_filter.min_reports)
 
 
 if __name__ == "__main__":
