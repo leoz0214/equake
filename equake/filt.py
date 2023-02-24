@@ -648,11 +648,11 @@ class IntensityFilter(_RangeFilter):
         Parameters:
             `min_intensity` - the minimum intensity to search from.
             Range: 0 <= minimum intensity <= maximum intensity
-            Default: 0
+            Default: 0 (no minimum restriction)
 
             `max_intensity` - the maximum intensity to search from.
             Range: minimum intensity <= maximum intensity <= 12
-            Default: 12
+            Default: 12 (no maximum restriction)
 
             Both parameters are integers or floats.
         
