@@ -54,6 +54,19 @@ class UtilsTest(unittest.TestCase):
             self.assertEqual(
                 new_value,
                 value * (units_dict[units[0]] / units_dict[units[1]]))
+    
+    def test_keep_in_range(self) -> None:
+        for _ in range(1000):
+            _min = random.uniform(-10000, 1)
+            _max = random.uniform(1, 10000)
+            value = random.uniform(-20000, 20000)
+            new = _utils._keep_in_range(value, _min, _max)
+            if _min <= value <= _max:
+                self.assertEqual(new, value)
+            elif value < _min:
+                self.assertEqual(new, _min)
+            else:
+                self.assertEqual(new, _max)
 
 
 if __name__ == "__main__":

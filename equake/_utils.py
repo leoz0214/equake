@@ -56,3 +56,11 @@ def _convert_units(
     units: Dict[str, Union[int, float]]) -> Union[int, float]:
     # Performs unit conversion based on a dict of units and relative values.
     return value * (units[_from] / units[to])
+
+
+def _keep_in_range(
+    value: Union[int, float], _min: Union[int, float] = float("-inf"),
+    _max: Union[int, float] = float("inf")) -> int:
+    # Ensures value is not less than min or greater than max.
+    # Sets to min if less than min, to max if more than max.
+    return max(min(value, _max), _min)
