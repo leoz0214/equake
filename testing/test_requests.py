@@ -1,11 +1,13 @@
 """Tests the private `_requests` module in the library."""
 import random
 import sys
+import threading
 import unittest
+from contextlib import suppress
 from datetime import datetime
 
 sys.path.append(".")
-from equake import filt, _requests
+from equake import filt, _requests, exceptions
 
 
 class RequestsTest(unittest.TestCase):
@@ -102,6 +104,46 @@ class RequestsTest(unittest.TestCase):
                 self.assertIn(param, actual_params)
                 actual_params.remove(param)
             self.assertEqual([f"limit={min(limit, 20000)}"], actual_params)
+    
+    def count_check(self, _filt, min_expected):
+        for _ in range(10):
+            with suppress(exceptions.EquakeException):
+                try:
+                    self.assertGreaterEqual(
+                        _requests._count(_filt), min_expected)
+                except AssertionError as e:
+                    self.count_error = e
+                break      
+    
+    def test_count(self) -> None:
+        self.count_error = None
+        default = filt.EarthquakeFilter()
+        full = filt.EarthquakeFilter(
+            filt.TimeFilter(
+                datetime(2000, 1, 1), datetime(2009, 12, 31, 23, 59, 59)),
+            filt.CircleDistanceLocationFilter(54.7228401, -5.8157451, 1000),
+            filt.DepthFilter(10, 100),
+            filt.MagnitudeFilter(2, 8),
+            filt.IntensityFilter(2, 12),
+            pager_level=None)
+        none = filt.EarthquakeFilter(filt.TimeFilter(end=datetime(1, 1, 1)))
+        chile = filt.EarthquakeFilter(
+            time_filter=filt.TimeFilter(
+                start=datetime(1960, 1, 1), end=datetime(1961, 1, 1)),
+            magnitude_filter=filt.MagnitudeFilter(9.4))
+        threads = []
+        for _filt, min_expected in (
+            (default, 1000), (full, 100), (none, 0), (chile, 1)
+        ):
+            thread= threading.Thread(
+                target=lambda: self.count_check(_filt, min_expected),
+                daemon=True)
+            threads.append(thread)
+            thread.start()
+        for thread in threads:
+            thread.join()
+            if self.count_error is not None:
+                raise self.count_error
 
 
 if __name__ == "__main__":
