@@ -3,10 +3,10 @@ This module handles the sending of requests to the USGS API to retrieve
 the earthquake counts/data. It is private.
 """
 import json
-from typing import Callable, Union
+from typing import Callable, List, Union
 from urllib import error, request
 
-from . import filt
+from . import filt, quake
 from .exceptions import RequestError, HTTPError
 from ._utils import _keep_in_range
 
@@ -90,8 +90,7 @@ def _handle_errors(func: Callable) -> Callable:
 
 @_handle_errors
 def _count(
-    _filt: filt.EarthquakeFilter,
-    timeout: Union[int, float, None] = None) -> int:
+    _filt: filt.EarthquakeFilter, timeout: Union[int, float, None]) -> int:
     # Requests a count of the number of earthquakes matching a given filter.
     query_string = _get_query_string(_filt)
     url = f"{COUNT_URL}{query_string}"
@@ -102,7 +101,7 @@ def _count(
 @_handle_errors
 def _get(
     _filt: filt.EarthquakeFilter, limit: int,
-    timeout: Union[int, float, None] = None):
+    timeout: Union[int, float, None]) -> List[quake.Earthquake]:
     # Gets earthquakes matching a given filter.
     query_string = _get_query_string(_filt, limit)
     url = f"{GET_URL}{query_string}"

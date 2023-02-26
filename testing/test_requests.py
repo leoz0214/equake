@@ -7,7 +7,7 @@ from contextlib import suppress
 from datetime import datetime
 
 sys.path.append(".")
-from equake import filt, _requests, exceptions
+from equake import exceptions, filt, _requests
 
 
 class RequestsTest(unittest.TestCase):
@@ -110,7 +110,7 @@ class RequestsTest(unittest.TestCase):
             with suppress(exceptions.EquakeException):
                 try:
                     self.assertGreaterEqual(
-                        _requests._count(_filt), min_expected)
+                        _requests._count(_filt, None), min_expected)
                 except AssertionError as e:
                     self.count_error = e
                 break      

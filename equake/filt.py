@@ -237,7 +237,8 @@ class RectLocationFilter(_LocationFilter):
     def min_long(self, min_long: Union[int, float]) -> None:
         if min_long < RECT_MIN_LONGITUDE:
             raise ValueError(
-                "Minimum longitude must not be less than", RECT_MIN_LONGITUDE)
+                f"Minimum longitude must not be less than {RECT_MIN_LONGITUDE}"
+            )
         if hasattr(self, "_max_long") and min_long > self.max_long:
             raise ValueError(
                 "Minimum longitude must not be greater than maximum longitude."
@@ -260,8 +261,8 @@ class RectLocationFilter(_LocationFilter):
     def max_long(self, max_long: Union[int, float]) -> None:
         if max_long > RECT_MAX_LONGITUDE:
             raise ValueError(
-                "Maximum longitude must not be greater than",
-                RECT_MAX_LONGITUDE)
+                "Maximum longitude must not be "
+                f"greater than {RECT_MAX_LONGITUDE}")
         if hasattr(self, "_min_long") and max_long < self.min_long:
             raise ValueError(
                 "Maximum longitude must not be less than minimum longitude")
@@ -293,14 +294,16 @@ class _CircleLocationFilter(_LocationFilter):
         if lat < MIN_LATITUDE:
             raise ValueError(f"Latitude must not be less than {MIN_LATITUDE}")
         if lat > MAX_LATITUDE:
-            raise ValueError("Latitude must not be greater than", MAX_LATITUDE)
+            raise ValueError(
+                f"Latitude must not be greater than {MAX_LATITUDE}")
         self._lat = lat
     
     @long.setter
     @_LocationFilter._lat_long_check("long")
     def long(self, long: Union[int, float]) -> None:
         if long < MIN_LONGITUDE:
-            raise ValueError("Longitude must not be less than", MIN_LONGITUDE)
+            raise ValueError(
+                f"Longitude must not be less than {MIN_LONGITUDE}")
         if long > MAX_LONGITUDE:
             raise ValueError(
                 f"Longitude must not be greater than {MAX_LONGITUDE}")
