@@ -106,4 +106,6 @@ def _get(
     query_string = _get_query_string(_filt, limit)
     url = f"{GET_URL}{query_string}"
     with request.urlopen(url, timeout=timeout) as response:
-        return json.loads(response.read())["features"]
+        earthquakes = json.loads(response.read())["features"]
+    return [
+        quake.Earthquake._from_api(earthquake) for earthquake in earthquakes]
