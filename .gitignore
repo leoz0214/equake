@@ -2,3 +2,5 @@
 sandbox.py
 .nox
 pyversions.json
+dist
+equake.egg-info
