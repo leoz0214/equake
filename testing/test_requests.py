@@ -56,7 +56,7 @@ class RequestsTest(unittest.TestCase):
                 "updatedafter": partial.time_filter.updated.isoformat(),
                 "latitude": partial.location_filter.lat,
                 "longitude": partial.location_filter.long,
-                "radius": partial.location_filter.radius,
+                "maxradius": partial.location_filter.radius,
                 "minmag": partial.magnitude_filter.min,
                 "alertlevel": partial.pager_level,
                 "minfelt": partial.min_reports
@@ -68,7 +68,7 @@ class RequestsTest(unittest.TestCase):
                 "updatedafter": full.time_filter.updated.isoformat(),
                 "latitude": full.location_filter.lat,
                 "longitude": full.location_filter.long,
-                "radiuskm": full.location_filter.radius_km,
+                "maxradiuskm": full.location_filter.radius_km,
                 "mindepth": full.depth_filter.min_km,
                 "maxdepth": full.depth_filter.max_km,
                 "minmag": full.magnitude_filter.min,
@@ -85,7 +85,7 @@ class RequestsTest(unittest.TestCase):
                 "updatedafter": extreme.time_filter.updated.isoformat(),
                 "latitude": extreme.location_filter.lat,
                 "longitude": extreme.location_filter.long,
-                "radiuskm": 99999,
+                "maxradiuskm": 20001.6,
                 "mindepth": 9999,
                 "maxdepth": 9999,
                 "minmag": 12,
@@ -121,7 +121,7 @@ class RequestsTest(unittest.TestCase):
         full = filt.EarthquakeFilter(
             filt.TimeFilter(
                 datetime(2000, 1, 1), datetime(2009, 12, 31, 23, 59, 59)),
-            filt.CircleDistanceLocationFilter(54.7228401, -5.8157451, 1000),
+            filt.CircleDistanceLocationFilter(54.7228401, -5.8157451, 10000),
             filt.DepthFilter(10, 100),
             filt.MagnitudeFilter(2, 8),
             filt.IntensityFilter(2, 12),
@@ -144,6 +144,44 @@ class RequestsTest(unittest.TestCase):
             thread.join()
             if self.count_error is not None:
                 raise self.count_error
+    
+    def get_check(self, _filt):
+        limit = random.randint(1, 100)
+        try:
+            result = _requests._get(_filt, limit, 60)
+        except TimeoutError:
+            return
+        try:
+            self.assertEqual(len(result), limit)
+            self.assertTrue(
+                all(earthquake.has_reports for earthquake in result))
+        except AssertionError as e:
+            self.get_error = e
+    
+    def test_get(self) -> None:
+        self.get_error = None
+        filts = (
+            filt.EarthquakeFilter(),
+            filt.EarthquakeFilter(
+                time_filter=filt.TimeFilter(
+                    start=datetime(1, 1, 1), end=datetime(1900, 1, 1))),
+            filt.EarthquakeFilter(
+                time_filter=filt.TimeFilter(start=datetime(2020, 1, 1)),
+                min_reports=1),
+            filt.EarthquakeFilter(
+                filt.TimeFilter(datetime(1, 1, 1)),
+                magnitude_filter=filt.MagnitudeFilter(random.uniform(6, 7.5)))
+        )
+        threads = []
+        for _filt in filts:
+            thread = threading.Thread(
+                target=lambda: self.get_check(_filt), daemon=True)
+            threads.append(thread)
+            thread.start()
+        for thread in threads:
+            thread.join()
+            if self.get_error is not None:
+                raise self.get_error
 
 
 if __name__ == "__main__":

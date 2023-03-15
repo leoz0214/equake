@@ -44,7 +44,7 @@ class UtilsTest(unittest.TestCase):
             value = random.uniform(0, 1000000)
             units = ["".join(
                 chr(random.randint(1, 1000000))
-                for __ in range(random.randint(2, 100)))
+                for _ in range(random.randint(2, 100)))
                 for _ in range(random.randint(2, 10))]
             units_dict = {
                 unit: random.uniform(0.0000001, 10000000) for unit in units

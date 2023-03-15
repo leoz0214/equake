@@ -67,7 +67,7 @@ class TimeFilter:
             (default start time).
 
             All parameters are datetime objects or None.
-        
+
         Note: all times are in UTC. Please be careful with local times.
         """
         times = {"end": end, "start": start, "updated": updated}
@@ -90,14 +90,14 @@ class TimeFilter:
                 raise _get_type_error(name, (datetime, None), _time)
             else: # Just set the time via the corresponding setter.
                 setattr(self, name, _time)
-    
+
     def __repr__(self) -> str:
         return f"TimeFilter({repr(self.start)}, {repr(self.end)}, "\
             f"{repr(self.updated)})"
-    
+
     def __str__(self) -> str:
         return f"Start: {self.start}\nEnd: {self.end}\nUpdated: {self.updated}"
-        
+
     @property
     def start(self) -> datetime:
         """Earliest time to check from."""
@@ -107,26 +107,26 @@ class TimeFilter:
     def end(self) -> datetime:
         """Latest time to check to."""
         return self._end
-    
+
     @property
     def updated(self) -> datetime:
         """Earliest updated time required."""
         return self._updated
-    
+
     @start.setter
     @_method_type_check("start", datetime)
     def start(self, start: datetime) -> None:
         if hasattr(self, "_end") and start > self.end:
             raise ValueError("Start time must not be later than end time.")
         self._start = start
-    
+
     @end.setter
     @_method_type_check("end", datetime)
     def end(self, end: datetime) -> None:
         if hasattr(self, "_start") and end < self.start:
             raise ValueError("End time must not be earlier than start time.")
         self._end = end
-    
+
     @updated.setter
     @_method_type_check("updated", datetime)
     def updated(self, updated: datetime) -> None:
@@ -165,11 +165,11 @@ class RectLocationFilter(_LocationFilter):
             Range: -360 <= minimum longitude <= maximum longitude
             Default: -180
 
-            `max_lat` - the maximum latitude to search from.
+            `max_lat` - the maximum latitude to search to.
             Range: minimum latitude <= maximum latitude <= 90
             Default: 90
 
-            `max_long` - the maximum longitude to search from.
+            `max_long` - the maximum longitude to search to.
             Range: minimum longitude <= maximum longitude <= 360
             Default: 180
 
@@ -189,38 +189,38 @@ class RectLocationFilter(_LocationFilter):
         self.min_long = min_long
         self.max_lat = max_lat
         self.max_long = max_long
-    
+
     def __repr__(self) -> str:
         return "RectLocationFilter("\
             f"{repr(self.min_lat)}, {repr(self.min_long)}, "\
             f"{repr(self.max_lat)}, {repr(self.max_long)})"
-    
+
     def __str__(self) -> str:
         return f"Minimum latitude: {self.min_lat}\n"\
             f"Minimum longitude: {self.min_long}\n"\
             f"Maximum latitude: {self.max_lat}\n"\
             f"Maximum longitude: {self.max_long}"
-    
+
     @property
     def min_lat(self) -> Union[int, float]:
         """Minimum latitude to search from."""
         return self._min_lat
-    
+
     @property
     def min_long(self) -> Union[int, float]:
         """Minimum longitude to search from."""
         return self._min_long
-    
+
     @property
     def max_lat(self) -> Union[int, float]:
         """Maximum latitude to search to."""
         return self._max_lat
-    
+
     @property
     def max_long(self) -> Union[int, float]:
         """Maximum longitude to search to."""
         return self._max_long
-    
+
     @min_lat.setter
     @_LocationFilter._lat_long_check("min_lat")
     def min_lat(self, min_lat: Union[int, float]) -> None:
@@ -231,7 +231,7 @@ class RectLocationFilter(_LocationFilter):
             raise ValueError(
                 "Minimum latitude must not be greater than maximum latitude.")
         self._min_lat = min_lat
-    
+
     @min_long.setter
     @_LocationFilter._lat_long_check("min_long")
     def min_long(self, min_long: Union[int, float]) -> None:
@@ -244,7 +244,7 @@ class RectLocationFilter(_LocationFilter):
                 "Minimum longitude must not be greater than maximum longitude."
             )
         self._min_long = min_long
-    
+
     @max_lat.setter
     @_LocationFilter._lat_long_check("max_lat")
     def max_lat(self, max_lat: Union[int, float]) -> None:
@@ -255,7 +255,7 @@ class RectLocationFilter(_LocationFilter):
             raise ValueError(
                 "Maximum latitude must not be less than minimum latitude.")
         self._max_lat = max_lat
-    
+
     @max_long.setter
     @_LocationFilter._lat_long_check("max_long")
     def max_long(self, max_long: Union[int, float]) -> None:
@@ -265,7 +265,7 @@ class RectLocationFilter(_LocationFilter):
                 f"greater than {RECT_MAX_LONGITUDE}")
         if hasattr(self, "_min_long") and max_long < self.min_long:
             raise ValueError(
-                "Maximum longitude must not be less than minimum longitude")
+                "Maximum longitude must not be less than minimum longitude.")
         self._max_long = max_long
 
 
@@ -282,12 +282,12 @@ class _CircleLocationFilter(_LocationFilter):
     def lat(self) -> Union[int, float]:
         """Latitude of the point."""
         return self._lat
-    
+
     @property
     def long(self) -> Union[int, float]:
         """Longitude of the point."""
         return self._long
-    
+
     @lat.setter
     @_LocationFilter._lat_long_check("lat")
     def lat(self, lat: Union[int, float]) -> None:
@@ -297,7 +297,7 @@ class _CircleLocationFilter(_LocationFilter):
             raise ValueError(
                 f"Latitude must not be greater than {MAX_LATITUDE}")
         self._lat = lat
-    
+
     @long.setter
     @_LocationFilter._lat_long_check("long")
     def long(self, long: Union[int, float]) -> None:
@@ -341,11 +341,11 @@ class CircleLocationFilter(_CircleLocationFilter):
     def __repr__(self) -> str:
         return f"CircleLocationFilter("\
             f"{repr(self.lat)}, {repr(self.long)}, {repr(self.radius)})"
-    
+
     def __str__(self) -> str:
         return f"Latitude: {self.lat}\nLongitude: {self.long}\n"\
             f"Radius (degrees): {self.radius}"
-    
+
     @property
     def radius(self) -> Union[int, float]:
         """Radius of the point in degrees."""
@@ -385,43 +385,43 @@ class CircleDistanceLocationFilter(_CircleLocationFilter):
             is in, either kilometres ('km') or miles ('mi'). Default: 'km'
         """
         super().__init__(lat, long)
-        # Allow for leading/trailing whitespace.
         if not isinstance(radius_unit, str):
             raise _get_type_error("radius_unit", str, radius_unit)
-        radius_unit = radius_unit.strip() 
+        # Allow for leading/trailing whitespace.
+        radius_unit = radius_unit.strip()
         if radius_unit == KM:
             self.radius_km = radius
         elif radius_unit == MI:
             self.radius_mi = radius
         else:
             raise ValueError(f"Radius unit must be '{KM}' or '{MI}'")
-    
+
     def __repr__(self) -> str:
         return f"CircleDistanceLocationFilter("\
             f"{repr(self.lat)}, {repr(self.long)}, "\
             f"{repr(self.radius_km)}, '{KM}')"
-    
+
     def __str__(self) -> str:
         return f"Latitude {self.lat}\nLongitude: {self.long}\n"\
             f"Radius (km): {self.radius_km}\nRadius (mi): {self.radius_mi}"
-    
+
     @property
     def radius_km(self) -> Union[int, float]:
         """Radius of the point in kilometres."""
         return self._radius
-    
+
     @property
     def radius_mi(self) -> Union[int, float]:
         """Radius of the point in miles."""
         return _convert_units(self.radius_km, KM, MI, DISTANCE_UNITS)
-    
+
     @radius_km.setter
     @_method_type_check("radius_km", (int, float))
     def radius_km(self, radius_km: Union[int, float]) -> None:
         if radius_km < MIN_RADIUS: # Min = 0, so unit irrelevant.
             raise ValueError(f"Radius must not be less than {MIN_RADIUS}")
         self._radius = radius_km
-    
+
     @radius_mi.setter
     @_method_type_check("radius_mi", (int, float))
     def radius_mi(self, radius_mi: Union[int, float]) -> None:
@@ -450,7 +450,7 @@ class _RangeFilter:
             raise _get_type_error("_max", (int, float), _max)
         self._set_min(_min)
         self._set_max(_max)
-    
+
     def _set_min(self, _min: Union[int, float]) -> None:
         if _min < self._actual_min:
             raise ValueError(
@@ -461,7 +461,7 @@ class _RangeFilter:
                 f"Minimum {self._name} must not be "
                 f"greater than the maximum {self._name}.")
         self._min = _min
-    
+
     def _set_max(self, _max: Union[int, float]) -> None:
         if _max > self._actual_max:
             raise ValueError(
@@ -485,16 +485,16 @@ class DepthFilter(_RangeFilter):
 
         Parameters:
             `min_depth` [int/float] - the minimum depth to search from.
-            Range: negative infinity <= minimum depth <= maximum depth
+            Range: minimum depth <= maximum depth
             Default: negative infinity (no minimum restriction)
 
-            `max_depth` [int/float] - the maximum depth to search from.
-            Range: minimum depth <= maximum depth <= positive infinity
+            `max_depth` [int/float] - the maximum depth to search to.
+            Range: maximum depth >= minimum depth
             Default: positive infinity (no maximum restriction)
 
             `unit` [str['km'/'mi']] - the unit the depths are in, either
             kilometres ('km') or miles ('mi'). Default: 'km'
-        
+
         Note: it may seem strange that depth can be recorded as negative,
         as that would imply the earthquake occurred above the surface.
         This can happen when the earthquake depth is very shallow.
@@ -511,7 +511,7 @@ class DepthFilter(_RangeFilter):
             self.min_mi = min_depth
         elif unit != KM:
             raise ValueError(f"Unit must be either '{KM}' or '{MI}'")
-    
+
     def __repr__(self) -> str:
         _min = (
             repr(self.min_km) if self.min_km != float("-inf")
@@ -520,7 +520,7 @@ class DepthFilter(_RangeFilter):
             repr(self.max_km) if self.max_km != float("inf")
             else "float('inf')")
         return f"DepthFilter({_min}, {_max}, '{KM}')"
-    
+
     def __str__(self) -> str:
         lines = []
         if self.min_km != float("-inf"):
@@ -532,42 +532,42 @@ class DepthFilter(_RangeFilter):
         else:
             lines.append("Maximum depth: No restriction")
         return "\n".join(lines)
-    
+
     @property
     def min_km(self) -> Union[int, float]:
         """Minimum depth to search from in kilometres."""
         return self._min
-    
+
     @property
     def min_mi(self) -> Union[int, float]:
         """Minimum depth to search from in miles."""
         return _convert_units(self.min_km, KM, MI, DISTANCE_UNITS)
-    
+
     @property
     def max_km(self) -> Union[int, float]:
         """Maximum depth to search to in kilometres."""
         return self._max
-    
+
     @property
     def max_mi(self) -> Union[int, float]:
         """Maximum depth to search to in miles."""
         return _convert_units(self.max_km, KM, MI, DISTANCE_UNITS)
-    
+
     @min_km.setter
     @_RangeFilter._type_check("min_km")
     def min_km(self, min_km: Union[int, float]) -> None:
         self._set_min(min_km)
-    
+
     @min_mi.setter
     @_RangeFilter._type_check("min_mi")
     def min_mi(self, min_mi: Union[int, float]) -> None:
         self._set_min(_convert_units(min_mi, MI, KM, DISTANCE_UNITS))
-    
+
     @max_km.setter
     @_RangeFilter._type_check("max_km")
     def max_km(self, max_km: Union[int, float]) -> None:
         self._set_max(max_km)
-    
+
     @max_mi.setter
     @_RangeFilter._type_check("max_mi")
     def max_mi(self, max_mi: Union[int, float]) -> None:
@@ -588,53 +588,53 @@ class MagnitudeFilter(_RangeFilter):
 
         Parameters:
             `min_mag` - the minimum magnitude to search from.
-            Range: negative infinity <= minimum <= maximum
+            Range: minimum <= maximum
             Default: negative infinity (no minimum restriction)
 
-            `max_mag` - the maximum magnitude to search from.
-            Range: minimum <= maximum <= positive infinity
+            `max_mag` - the maximum magnitude to search to.
+            Range: maximum >= minimum
             Default: positive infinity (no maximum restriction)
 
             Both parameters are integers or floats.
-        
+
         Note: as the Richter Scale is logarithmic, magnitude can
         indeed be negative, but earthquakes with negative
         magnitudes are extremely weak and insignificant.
         """
         super().__init__(min_mag, max_mag, "magnitude")
-    
+
     def __repr__(self) -> str:
         _min = repr(self.min) if self.min != float("-inf") else "float('-inf')"
         _max = repr(self.max) if self.max != float("inf") else "float('inf')"
         return f"MagnitudeFilter({_min}, {_max})"
-    
+
     def __str__(self) -> str:
         _min = "Minimum magnitude: " +\
             str(self.min if self.min != float("-inf") else 'No restriction')
         _max = "Maximum magnitude: " +\
             str(self.max if self.max != float("inf") else 'No restriction')
         return f"{_min}\n{_max}"
-    
+
     @property
     def min(self) -> Union[int, float]:
         """Minimum magnitude to search from."""
         return self._min
-    
+
     @property
     def max(self) -> Union[int, float]:
         """Maximum magnitude to search to."""
         return self._max
-    
+
     @min.setter
     @_RangeFilter._type_check("min")
     def min(self, min_mag: Union[int, float]) -> None:
         return self._set_min(min_mag)
-    
+
     @max.setter
     @_RangeFilter._type_check("max")
     def max(self, max_mag: Union[int, float]) -> None:
         return self._set_max(max_mag)
-    
+
 
 class IntensityFilter(_RangeFilter):
     """
@@ -653,12 +653,12 @@ class IntensityFilter(_RangeFilter):
             Range: 0 <= minimum intensity <= maximum intensity
             Default: 0 (no minimum restriction)
 
-            `max_intensity` - the maximum intensity to search from.
+            `max_intensity` - the maximum intensity to search to.
             Range: minimum intensity <= maximum intensity <= 12
             Default: 12 (no maximum restriction)
 
             Both parameters are integers or floats.
-        
+
         Note: it is the maximum MMI of an earthquake as that is
         considered 'intensity'.
         Also, intensity is not to be confused with magnitude.
@@ -668,7 +668,7 @@ class IntensityFilter(_RangeFilter):
         super().__init__(
             min_intensity, max_intensity, "intensity",
             MIN_INTENSITY, MAX_INTENSITY)
-    
+
     @property
     def min(self) -> Union[int, float]:
         """Minimum intensity to search from."""
@@ -678,18 +678,18 @@ class IntensityFilter(_RangeFilter):
     def max(self) -> Union[int, float]:
         """Maximum intensity to search to."""
         return self._max
-    
+
     def __repr__(self) -> str:
         return f"IntensityFilter({repr(self.min)}, {repr(self.max)})"
-    
+
     def __str__(self) -> str:
         return f"Minimum intensity: {self.min}\nMaximum intensity: {self.max}"
-    
+
     @min.setter
     @_RangeFilter._type_check("min")
     def min(self, min_intensity: Union[int, float]) -> None:
         self._set_min(min_intensity)
-    
+
     @max.setter
     @_RangeFilter._type_check("max")
     def max(self, max_intensity: Union[int, float]) -> None:
@@ -753,7 +753,7 @@ class EarthquakeFilter:
             `min_reports` [int] - allows earthquakes to be filtered based on
             the minimum number of reports from the public.
             Range: minimum reports >= 0
-            Default: 0
+            Default: 0 (no restriction)
         """
         sub_filters = (
             ("time_filter", time_filter, (TimeFilter,)),
@@ -769,13 +769,13 @@ class EarthquakeFilter:
             setattr(self, name, classes[0]() if value is None else value)
         self.pager_level = pager_level
         self.min_reports = min_reports
-    
+
     def __repr__(self) -> str:
         return f"EarthquakeFilter({repr(self.time_filter)}, "\
             f"{repr(self.location_filter)}, {repr(self.depth_filter)}, "\
             f"{repr(self.magnitude_filter)}, {repr(self.intensity_filter)}, "\
             f"{repr(self.pager_level)}, {self.min_reports})"
-    
+
     def __str__(self) -> str:
         return "----- Earthquake Filter -----\n"\
             f"--- Time ---\n{self.time_filter}\n\n"\
@@ -785,42 +785,42 @@ class EarthquakeFilter:
             f"--- Intensity ---\n{self.intensity_filter}\n\n"\
             f"--- PAGER level ---\n{self.pager_level}\n\n"\
             f"--- Minimum reports ---\n{self.min_reports}"
-    
+
     @property
     def time_filter(self) -> TimeFilter:
         """The time filter object."""
         return self._time_filter
-    
+
     @property
     def location_filter(self) -> _LocationFilter:
         """The location filter object."""
         return self._location_filter
-    
+
     @property
     def depth_filter(self) -> DepthFilter:
         """The depth filter object."""
         return self._depth_filter
-    
+
     @property
     def magnitude_filter(self) -> MagnitudeFilter:
         """The magnitude filter object."""
         return self._magnitude_filter
-    
+
     @property
     def intensity_filter(self) -> IntensityFilter:
         """The intensity filter object."""
         return self._intensity_filter
-    
+
     @property
     def pager_level(self) -> Union[str, None]:
         """The PAGER level set."""
         return self._pager_level
-    
+
     @property
     def min_reports(self) -> int:
         """Minimum number of reports from the public."""
         return self._min_reports
-    
+
     @time_filter.setter
     @_method_type_check("time_filter", TimeFilter)
     def time_filter(self, time_filter: TimeFilter) -> None:
@@ -832,22 +832,22 @@ class EarthquakeFilter:
         CircleDistanceLocationFilter))
     def location_filter(self, location_filter: _LocationFilter) -> None:
         self._location_filter = location_filter
-    
+
     @depth_filter.setter
     @_method_type_check("depth_filter", DepthFilter)
     def depth_filter(self, depth_filter: DepthFilter) -> None:
         self._depth_filter = depth_filter
-    
+
     @magnitude_filter.setter
     @_method_type_check("magnitude_filter", MagnitudeFilter)
     def magnitude_filter(self, magnitude_filter: MagnitudeFilter) -> None:
         self._magnitude_filter = magnitude_filter
-    
+
     @intensity_filter.setter
     @_method_type_check("intensity_filter", IntensityFilter)
     def intensity_filter(self, intensity_filter: IntensityFilter) -> None:
         self._intensity_filter = intensity_filter
-    
+
     @pager_level.setter
     @_method_type_check("pager_level", (str, None))
     def pager_level(self, pager_level: Union[str, None]) -> None:
@@ -859,7 +859,7 @@ class EarthquakeFilter:
             raise ValueError(
                 "PAGER level must be 'green', 'yellow', 'orange' or 'red'.")
         self._pager_level = pager_level
-    
+
     @min_reports.setter
     @_method_type_check("min_reports", int)
     def min_reports(self, min_reports: int) -> None:

@@ -7,7 +7,7 @@ from typing import Callable, List, Union
 from urllib import error, request
 
 from . import filt, quake
-from .exceptions import RequestError, HTTPError
+from .exceptions import HTTPError, RequestError
 from ._utils import _keep_in_range
 
 
@@ -16,13 +16,12 @@ COUNT_URL = f"{BASE_URL}/count"
 GET_URL = f"{BASE_URL}/query"
 
 # Minima/maxima to feed to the API.
-# Remove extreme data before sending the request.
+# Remove extreme, unrealistic data before sending the request.
 MIN_DEPTH_KM = -100
 MAX_DEPTH_KM = 9999
 MIN_MAGNTIUDE = -5
 MAX_MAGNITUDE = 12
-
-MAX_RADIUS_KM = 99999
+MAX_RADIUS_KM = 20001.6
 MAX_REPORTS = 999_999_999 # No way this will be exceeded.
 MAX_LIMIT = 20000
 
@@ -45,9 +44,9 @@ def _get_query_string(
         params["latitude"] = _filt.location_filter.lat
         params["longitude"] = _filt.location_filter.long
         if isinstance(_filt.location_filter, filt.CircleLocationFilter):
-            params["radius"] = _filt.location_filter.radius
+            params["maxradius"] = _filt.location_filter.radius
         else:
-            params["radiuskm"] = min(
+            params["maxradiuskm"] = min(
                 _filt.location_filter.radius_km, MAX_RADIUS_KM)
     if _filt.depth_filter.min_km != float("-inf"):
         params["mindepth"] = _keep_in_range(
@@ -71,7 +70,7 @@ def _get_query_string(
         params["minfelt"] = min(_filt.min_reports, MAX_REPORTS)
     if limit is not None:
         params["limit"] = min(limit, MAX_LIMIT)
-    return "?" + "&".join(f"{key}={value}" for key, value in params.items())
+    return f"?{'&'.join(f'{key}={value}' for key, value in params.items())}"
 
 
 def _handle_errors(func: Callable) -> Callable:

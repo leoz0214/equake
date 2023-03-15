@@ -3,7 +3,7 @@ from urllib import error
 
 
 class EquakeException(Exception):
-    """Base exception for all library exceptions."""
+    """Base exception for all library-specific exceptions."""
 
 
 class RequestError(error.URLError, EquakeException):

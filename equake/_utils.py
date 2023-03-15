@@ -12,18 +12,19 @@ def _get_type_error(
     if allowed_types is None or isinstance(allowed_types, type):
         # Turns a standalone type into a 1-tuple.
         allowed_types = (allowed_types,)
-    allowed_types_str = ""
+    allowed_types_str_parts = []
     allowed_types_count = len(allowed_types)
     for i, _type in enumerate(allowed_types):
         # None does not have __name__ for some reason.
         type_name = _type.__name__ if _type is not None else "None"
-        allowed_types_str += f"'{type_name}'"
+        allowed_types_str_parts.append(f"'{type_name}'")
         if i == allowed_types_count - 2:
             # Penultimate allowed data type. Natural English.
-            allowed_types_str += " or "
+            allowed_types_str_parts.append(" or ")
         if i < allowed_types_count - 2:
-            allowed_types_str += ", "
+            allowed_types_str_parts.append(", ")
     bad_type_name = type(bad_data).__name__ if bad_data is not None else "None"
+    allowed_types_str = "".join(allowed_types_str_parts)
     return TypeError(
         f"'{name}' must be of type {allowed_types_str}, not '{bad_type_name}'")
 
@@ -42,7 +43,7 @@ def _method_type_check(
                     if value is None:
                         break
                 elif isinstance(value, _type):
-                    break    
+                    break
             else:
                 # The value does not match any allowed types.
                 raise _get_type_error(identifier, allowed_types, value)
